@@ -7,7 +7,7 @@ local Mouse = LocalPlayer:GetMouse()
 -- ==========================================
 -- 1. 기존 GUI 정리
 -- ==========================================
-local GUI_NAME = "RivalsPureCFrameGui_Fixed"
+local GUI_NAME = "RivalsMonochromeGui"
 local parentGui = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
 if parentGui:FindFirstChild(GUI_NAME) then
@@ -57,7 +57,7 @@ if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
 LocalPlayer.CharacterAdded:Connect(setupCharacter)
 
 -- ==========================================
--- 3. UI 생성
+-- 3. 모노크롬 UI 생성
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = GUI_NAME
@@ -67,21 +67,21 @@ screenGui.Parent = parentGui
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 260, 0, 420)
 mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15) -- 딥 블랙
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
+corner.CornerRadius = UDim.new(0, 6)
 corner.Parent = mainFrame
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 30)
+title.Size = UDim2.new(1, 0, 0, 32)
 title.BackgroundTransparency = 1
-title.Text = "Pro CFrame + Lag Free"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 12
+title.Text = "MONOCHROME CONTROL"
+title.TextColor3 = Color3.fromRGB(240, 240, 240)
+title.TextSize = 11
 title.Font = Enum.Font.GothamBold
 title.Parent = mainFrame
 
@@ -95,14 +95,14 @@ title.InputBegan:Connect(function(input)
     end
 end)
 
--- UI 요소 생성 함수
-local function createButton(text, yPos, color)
+-- 버튼 생성 함수 (모노크롬 스타일)
+local function createButton(text, yPos)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.9, 0, 0, 26)
+    btn.Size = UDim2.new(0.9, 0, 0, 28)
     btn.Position = UDim2.new(0.05, 0, 0, yPos)
-    btn.BackgroundColor3 = color or Color3.fromRGB(60, 60, 75)
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 12
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30) -- 다크 그레이
+    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    btn.TextSize = 11
     btn.Font = Enum.Font.GothamSemibold
     btn.Text = text
     btn.Parent = mainFrame
@@ -113,7 +113,8 @@ local function createButton(text, yPos, color)
     return btn
 end
 
-local function createSlider(yPos, labelText, defaultRatio, fillColor)
+-- 슬라이더 생성 함수 (모노크롬 스타일)
+local function createSlider(yPos, labelText, defaultRatio)
     local container = Instance.new("Frame")
     container.Size = UDim2.new(0.9, 0, 0, 42)
     container.Position = UDim2.new(0.05, 0, 0, yPos)
@@ -124,15 +125,15 @@ local function createSlider(yPos, labelText, defaultRatio, fillColor)
     label.Size = UDim2.new(1, 0, 0, 16)
     label.BackgroundTransparency = 1
     label.Text = labelText
-    label.TextColor3 = Color3.fromRGB(220, 220, 220)
-    label.TextSize = 11
+    label.TextColor3 = Color3.fromRGB(180, 180, 180)
+    label.TextSize = 10
     label.Font = Enum.Font.Gotham
     label.Parent = container
 
     local bgBar = Instance.new("Frame")
-    bgBar.Size = UDim2.new(1, 0, 0, 10)
+    bgBar.Size = UDim2.new(1, 0, 0, 8)
     bgBar.Position = UDim2.new(0, 0, 0, 20)
-    bgBar.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    bgBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     bgBar.BorderSizePixel = 0
     bgBar.Parent = container
 
@@ -142,7 +143,7 @@ local function createSlider(yPos, labelText, defaultRatio, fillColor)
 
     local fillBar = Instance.new("Frame")
     fillBar.Size = UDim2.new(defaultRatio, 0, 1, 0)
-    fillBar.BackgroundColor3 = fillColor or Color3.fromRGB(0, 170, 255)
+    fillBar.BackgroundColor3 = Color3.fromRGB(240, 240, 240) -- 화이트 Fill
     fillBar.BorderSizePixel = 0
     fillBar.Parent = bgBar
 
@@ -160,37 +161,47 @@ local function createSlider(yPos, labelText, defaultRatio, fillColor)
     return trigger, bgBar, fillBar, label
 end
 
--- 버튼 및 슬라이더 배치
-local randomButton = createButton("Waist Random: OFF", 35)
-local spinButton = createButton("Body Spin Mode: OFF", 65)
-local camSyncButton = createButton("Camera Sync: OFF", 95)
-local clickTpButton = createButton("Click TP: OFF", 125, Color3.fromRGB(40, 120, 150))
-local voidSpamButton = createButton("Void Spam: OFF", 155, Color3.fromRGB(150, 40, 40))
+-- UI 요소 배치
+local randomButton = createButton("Waist Random: OFF", 38)
+local spinButton = createButton("Body Spin Mode: OFF", 70)
+local camSyncButton = createButton("Camera Sync: OFF", 102)
+local clickTpButton = createButton("Click TP: OFF", 134)
+local voidSpamButton = createButton("Void Spam: OFF", 166)
 
-local neckTrig, neckBg, neckFill, neckLbl = createSlider(195, "Neck Pitch: 0°", 0.5)
-local waistTrig, waistBg, waistFill, waistLbl = createSlider(245, "Waist Pitch: 0°", 0.5, Color3.fromRGB(255, 100, 100))
-local spinTrig, spinBg, spinFill, spinLbl = createSlider(295, "Spin Speed: 90", 0.5, Color3.fromRGB(150, 255, 100))
+local neckTrig, neckBg, neckFill, neckLbl = createSlider(204, "Neck Pitch: 0°", 0.5)
+local waistTrig, waistBg, waistFill, waistLbl = createSlider(252, "Waist Pitch: 0°", 0.5)
+local spinTrig, spinBg, spinFill, spinLbl = createSlider(300, "Spin Speed: 90", 0.5)
 
 -- ==========================================
--- 4. 이벤트 핸들러
+-- 4. 이벤트 핸들러 (반전 화이트/블랙 토글 디자인)
 -- ==========================================
+local function updateButtonStyle(btn, state)
+    if state then
+        btn.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+        btn.TextColor3 = Color3.fromRGB(15, 15, 15)
+    else
+        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    end
+end
+
 randomButton.MouseButton1Click:Connect(function()
     isRandomMode = not isRandomMode
     randomButton.Text = "Waist Random: " .. (isRandomMode and "ON" or "OFF")
-    randomButton.BackgroundColor3 = isRandomMode and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(60, 60, 75)
+    updateButtonStyle(randomButton, isRandomMode)
 end)
 
 spinButton.MouseButton1Click:Connect(function()
     isSpinMode = not isSpinMode
     spinButton.Text = "Body Spin Mode: " .. (isSpinMode and "ON" or "OFF")
-    spinButton.BackgroundColor3 = isSpinMode and Color3.fromRGB(0, 180, 100) or Color3.fromRGB(60, 60, 75)
+    updateButtonStyle(spinButton, isSpinMode)
     if hum then hum.AutoRotate = not isSpinMode end
 end)
 
 camSyncButton.MouseButton1Click:Connect(function()
     isCamSync = not isCamSync
     camSyncButton.Text = "Camera Sync: " .. (isCamSync and "ON" or "OFF")
-    camSyncButton.BackgroundColor3 = isCamSync and Color3.fromRGB(180, 50, 200) or Color3.fromRGB(60, 60, 75)
+    updateButtonStyle(camSyncButton, isCamSync)
     
     local cam = workspace.CurrentCamera
     if not isCamSync then
@@ -202,13 +213,13 @@ end)
 clickTpButton.MouseButton1Click:Connect(function()
     isClickTpMode = not isClickTpMode
     clickTpButton.Text = "Click TP: " .. (isClickTpMode and "ON" or "OFF")
-    clickTpButton.BackgroundColor3 = isClickTpMode and Color3.fromRGB(0, 150, 180) or Color3.fromRGB(40, 120, 150)
+    updateButtonStyle(clickTpButton, isClickTpMode)
 end)
 
 voidSpamButton.MouseButton1Click:Connect(function()
     isVoidSpamMode = not isVoidSpamMode
     voidSpamButton.Text = "Void Spam: " .. (isVoidSpamMode and "ON" or "OFF")
-    voidSpamButton.BackgroundColor3 = isVoidSpamMode and Color3.fromRGB(200, 40, 40) or Color3.fromRGB(150, 40, 40)
+    updateButtonStyle(voidSpamButton, isVoidSpamMode)
 end)
 
 Mouse.Button1Down:Connect(function()
@@ -270,29 +281,25 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ==========================================
--- 5. 가벼워진 메인 렌더링 루프 (UI 텍스트 변경 원천 제거)
+-- 5. 가벼운 렌더링 루프 (Void Spam -10000 유지)
 -- ==========================================
 RunService.RenderStepped:Connect(function(dt)
     if not char or not char.Parent or not hrp or not hrp.Parent then return end
 
-    -- 1) 보이드 스팸 활성화 시 Y = -10,000으로 고정
     if isVoidSpamMode then
         hrp.CFrame = CFrame.new(hrp.Position.X, -10000, hrp.Position.Z)
     end
 
-    -- 2) 전체 몸체 스핀
     if isSpinMode then
         local rotRad = math.rad(spinSpeed * (dt * 60))
         hrp.CFrame = hrp.CFrame * CFrame.Angles(0, rotRad, 0)
     end
 
-    -- 3) 목 관절 꺾기
     if neck and origNeckC0 then
         neck.C0 = CFrame.new(origNeckC0.Position) * CFrame.fromAxisAngle(Vector3.xAxis, math.rad(neckPitch))
         neck.Transform = CFrame.new()
     end
 
-    -- 4) 허리 관절 꺾기 (UI Text 갱신 코드를 제거하여 렉 유발 방지)
     if waist and origWaistC0 then
         if isRandomMode then
             local now = tick()
@@ -305,7 +312,6 @@ RunService.RenderStepped:Connect(function(dt)
         waist.Transform = CFrame.new()
     end
 
-    -- 5) 카메라 동기화
     if isCamSync and head and head.Parent then
         local cam = workspace.CurrentCamera
         cam.CameraType = Enum.CameraType.Scriptable
