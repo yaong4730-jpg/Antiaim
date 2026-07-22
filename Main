@@ -6,7 +6,7 @@ local LocalPlayer = Players.LocalPlayer
 -- ==========================================
 -- 1. 기존 GUI 정리
 -- ==========================================
-local GUI_NAME = "RivalsPureCFrameGui"
+local GUI_NAME = "RivalsPureCFrameGui_Fix"
 local parentGui = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
 if parentGui:FindFirstChild(GUI_NAME) then
@@ -41,6 +41,7 @@ local function setupCharacter(character)
     neck = head:FindFirstChild("Neck")
     waist = upperTorso:FindFirstChild("Waist")
 
+    -- 순수 C0 위치값만 캐싱 (기본적으로 틀어져 있는 각도 무시)
     if neck then origNeckC0 = neck.C0 end
     if waist then origWaistC0 = waist.C0 end
 
@@ -75,7 +76,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "Pure CFrame + Spin Control"
+title.Text = "Anti-Twist CFrame Control"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 13
 title.Font = Enum.Font.GothamBold
@@ -232,23 +233,24 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ==========================================
--- 5. 실시간 CFrame 렌더링 루프 (비틀림 없는 순수 회전)
+-- 5. 비틀림 방지 CFrame 렌더링 루프
 -- ==========================================
 RunService.RenderStepped:Connect(function(dt)
     if not char or not char.Parent then return end
 
-    -- 1) 전체 몸체 스핀 (HumanoidRootPart 회전)
+    -- 1) 전체 몸체 스핀
     if isSpinMode and hrp then
         local rotRad = math.rad(spinSpeed * (dt * 60))
         hrp.CFrame = hrp.CFrame * CFrame.Angles(0, rotRad, 0)
     end
 
-    -- 2) 목 관절 굽히기 (-180 ~ 180)
+    -- 2) 목 관절: 위치값만 가져오고 단일 X축으로만 꺾음 + 기본 애니메이션 덮어쓰기 차단
     if neck and origNeckC0 then
-        neck.C0 = origNeckC0 * CFrame.Angles(math.rad(neckPitch), 0, 0)
+        neck.C0 = CFrame.new(origNeckC0.Position) * CFrame.fromAxisAngle(Vector3.xAxis, math.rad(neckPitch))
+        neck.Transform = CFrame.new() -- 숨쉬기 애니메이션 등으로 인한 비틀림 원천 차단
     end
 
-    -- 3) 허리 관절 굽히기 및 난수 처리 (-180 ~ 180)
+    -- 3) 허리 관절: 위와 동일한 방식으로 비틀림 차단
     if waist and origWaistC0 then
         if isRandomMode then
             local now = tick()
@@ -258,6 +260,7 @@ RunService.RenderStepped:Connect(function(dt)
                 waistLbl.Text = string.format("Waist Random: %d°", waistPitch)
             end
         end
-        waist.C0 = origWaistC0 * CFrame.Angles(math.rad(waistPitch), 0, 0)
+        waist.C0 = CFrame.new(origWaistC0.Position) * CFrame.fromAxisAngle(Vector3.xAxis, math.rad(waistPitch))
+        waist.Transform = CFrame.new() -- 숨쉬기/걷기 등 허리 애니메이션의 미세한 간섭 차단
     end
 end)
