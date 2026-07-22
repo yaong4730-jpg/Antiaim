@@ -56,7 +56,13 @@ end
 
 local b1 = addBtn("Waist Random: OFF", function() rnd = not rnd b1.Text = "Waist Random: "..(rnd and "ON" or "OFF") end)
 local b2 = addBtn("Body Spin: OFF", function() spin = not spin b2.Text = "Body Spin: "..(spin and "ON" or "OFF") if hum then hum.AutoRotate = not spin end end)
-local b3 = addBtn("Camera Sync: OFF", function() camSync = not camSync b3.Text = "Camera Sync: "..(camSync and "ON" or "OFF") if not camSync then workspace.CurrentCamera.CameraType = Enum.CameraType.Custom end end)
+local b3 = addBtn("Camera Sync: OFF", function() 
+    camSync = not camSync 
+    b3.Text = "Camera Sync: "..(camSync and "ON" or "OFF") 
+    if not camSync then 
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom 
+    end 
+end)
 local b4 = addBtn("Void Spam: OFF", function() voidSpam = not voidSpam b4.Text = "Void Spam: "..(voidSpam and "ON" or "OFF") end)
 
 local function addSld(name, min, max, def, cb)
@@ -70,10 +76,9 @@ local function addSld(name, min, max, def, cb)
     fill.Size, fill.BackgroundColor3 = UDim2.new((def-min)/(max-min),0,1,0), Color3.fromRGB(200,200,200)
     y = y + 16
 
-    local sliding = false
     bar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            sliding = true
+            local sliding = true
             local function update(i)
                 local r = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
                 fill.Size = UDim2.new(r,0,1,0)
@@ -87,8 +92,9 @@ local function addSld(name, min, max, def, cb)
                     update(i)
                 end
             end)
-            local endConn = UIS.InputEnded:Connect(function(i)
-                if i == input or i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            local endConn
+            endConn = UIS.InputEnded:Connect(function(i)
+                if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
                     sliding = false
                     if conn then conn:Disconnect() end
                     if endConn then endConn:Disconnect() end
@@ -108,18 +114,23 @@ RS.RenderStepped:Connect(function(dt)
     if not char or not hrp then return end
     if voidSpam then hrp.CFrame = CFrame.new(hrp.Position.X, -10000, hrp.Position.Z) end
     if spin then hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(spd * (dt * 60)), 0) end
+    
     if neck and origN then
         neck.C0 = CFrame.new(origN.Position) * CFrame.Angles(math.rad(np), math.rad(ny), 0)
         neck.Transform = CFrame.new()
     end
+    
     if waist and origW then
         if rnd then wp, wy = math.random(-180,180), math.random(-180,180) end
         waist.C0 = CFrame.new(origW.Position) * CFrame.Angles(math.rad(wp), math.rad(wy), 0)
         waist.Transform = CFrame.new()
     end
-    if camSync and head then
+
+    -- 게임 카메라(CurrentCamera) 자체를 설정한 Yaw/Pitch와 머리 위치로 완벽 동기화 및 고정
+    if camSync and hrp then
         local cam = workspace.CurrentCamera
         cam.CameraType = Enum.CameraType.Scriptable
-        cam.CFrame = head.CFrame * CFrame.new(0, 1.5, 8)
+        local headPos = head and head.Position or (hrp.Position + Vector3.new(0, 2, 0))
+        cam.CFrame = CFrame.new(headPos) * CFrame.Angles(math.rad(np), math.rad(ny), 0)
     end
 end)
