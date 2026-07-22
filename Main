@@ -4,36 +4,55 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
 -- 기존 GUI 정리
-if game:GetService("CoreGui"):FindFirstChild("RivalsMotor6DTestGui") then
-    game:GetService("CoreGui").RivalsMotor6DTestGui:Destroy()
+if game:GetService("CoreGui"):FindFirstChild("RivalsIkTest3Gui") then
+    game:GetService("CoreGui").RivalsIkTest3Gui:Destroy()
 end
 
 local pitchAngle = 0
 local isRandomMode = false
-local lastRandomTick = 0
-local randomInterval = 0.05 -- 0.05초 텀
-local originalC0 = nil
+local ikControl = nil
+local ikTargetPart = nil
 
-local function setupMotor6D(character)
+local function setupIK(character)
+    local humanoid = character:WaitForChild("Humanoid", 5)
     local upperTorso = character:WaitForChild("UpperTorso", 5)
-    if not upperTorso then return end
-    local waist = upperTorso:WaitForChild("Waist", 5)
-    if not waist then return end
+    local rootPart = character:WaitForChild("HumanoidRootPart", 5)
+    if not humanoid or not upperTorso or not rootPart then return end
 
-    -- 원래 허리 관절 기본값 백업
-    originalC0 = waist.C0
+    if ikTargetPart then ikTargetPart:Destroy() end
+    if ikControl then ikControl:Destroy() end
+
+    -- 1) IK 타깃 역할을 할 투명 파트 생성
+    ikTargetPart = Instance.new("Part")
+    ikTargetPart.Name = "IKTarget3"
+    ikTargetPart.Size = Vector3.new(0.2, 0.2, 0.2)
+    ikTargetPart.Transparency = 1
+    ikTargetPart.CanCollide = false
+    ikTargetPart.Anchored = true
+    ikTargetPart.Parent = character
+
+    -- 2) IKControl 생성
+    ikControl = Instance.new("IKControl")
+    ikControl.Name = "WaistIK_LookAt"
+    ikControl.Type = Enum.IKControlType.LookAt
+    ikControl.ChainRoot = upperTorso
+    ikControl.EndEffector = upperTorso
+    ikControl.Target = ikTargetPart
+    ikControl.Weight = 1
+    ikControl.SmoothTime = 0.05
+    ikControl.Parent = humanoid
 end
 
 if LocalPlayer.Character then
-    setupMotor6D(LocalPlayer.Character)
+    setupIK(LocalPlayer.Character)
 end
-LocalPlayer.CharacterAdded:Connect(setupMotor6D)
+LocalPlayer.CharacterAdded:Connect(setupIK)
 
 -- ==========================================
 -- UI 생성
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RivalsMotor6DTestGui"
+screenGui.Name = "RivalsIkTest3Gui"
 screenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
 
 local mainFrame = Instance.new("Frame")
@@ -52,9 +71,9 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "Test: Motor6D C0 (Local Only)"
+title.Text = "Test 3: IKControl + 100x Random"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 12
+title.TextSize = 13
 title.Font = Enum.Font.SourceSansBold
 title.Parent = mainFrame
 
@@ -66,7 +85,7 @@ modeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
 modeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 modeButton.TextSize = 12
 modeButton.Font = Enum.Font.SourceSansBold
-modeButton.Text = "Mode: Slider (-100° ~ 100°)"
+modeButton.Text = "Mode: Slider (-90° ~ 90°)"
 modeButton.Parent = mainFrame
 
 local btnCorner = Instance.new("UICorner")
@@ -108,10 +127,10 @@ fillBar.Parent = bgBar
 modeButton.MouseButton1Click:Connect(function()
     isRandomMode = not isRandomMode
     if isRandomMode then
-        modeButton.Text = "Mode: TP Random (0.05s, ±100°)"
+        modeButton.Text = "Mode: 100x Random (-100° ~ 100°)"
         modeButton.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
     else
-        modeButton.Text = "Mode: Slider (-100° ~ 100°)"
+        modeButton.Text = "Mode: Slider (-90° ~ 90°)"
         modeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
     end
 end)
@@ -121,7 +140,7 @@ local function updateInput(input)
     if isRandomMode then return end
     local pos = math.clamp((input.Position.X - bgBar.AbsolutePosition.X) / bgBar.AbsoluteSize.X, 0, 1)
     fillBar.Size = UDim2.new(pos, 0, 1, 0)
-    pitchAngle = math.floor(-100 + (200 * pos))
+    pitchAngle = math.floor(-90 + (180 * pos))
     sliderLabel.Text = string.format("Pitch: %d°", pitchAngle)
 end
 
@@ -145,28 +164,29 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 -- ==========================================
--- 매 프레임 Motor6D C0 값 직접 반영
+-- 실시간 IK 타깃 위치 연산 및 100배 빠른 랜덤 모드
 -- ==========================================
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
-    if char then
-        local upperTorso = char:FindFirstChild("UpperTorso")
-        if upperTorso then
-            local waist = upperTorso:FindFirstChild("Waist")
-            if waist and originalC0 then
-                if isRandomMode then
-                    local currentTick = tick()
-                    if currentTick - lastRandomTick >= randomInterval then
-                        lastRandomTick = currentTick
-                        pitchAngle = math.random(-100, 100)
-                    end
-                    sliderLabel.Text = string.format("TP Random Pitch: %d°", pitchAngle)
-                end
-
-                -- Motor6D C0 수치를 직접 회전시켜 상체 꺾기 반영
-                local rad = math.rad(pitchAngle)
-                waist.C0 = originalC0 * CFrame.Angles(rad, 0, 0)
+    if char and ikTargetPart and ikControl then
+        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        
+        if rootPart then
+            -- 기존 속도(3)에 100을 곱해 300으로 설정하여 100배 빠르게 왕복
+            if isRandomMode then
+                pitchAngle = math.floor(math.sin(tick() * 300) * 100)
+                sliderLabel.Text = string.format("100x Random Pitch: %d°", pitchAngle)
             end
+
+            local rad = math.rad(pitchAngle)
+            local dist = 10
+            
+            local basePos = rootPart.Position + Vector3.new(0, 1.5, 0)
+            local lookDir = rootPart.CFrame.LookVector
+            local upDir = rootPart.CFrame.UpVector
+            
+            local targetPos = basePos + (lookDir * (dist * math.cos(rad))) + (upDir * (dist * math.sin(rad)))
+            ikTargetPart.Position = targetPos
         end
     end
 end)
