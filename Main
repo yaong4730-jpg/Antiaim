@@ -7,7 +7,7 @@ local Mouse = LocalPlayer:GetMouse()
 -- ==========================================
 -- 1. 기존 GUI 정리
 -- ==========================================
-local GUI_NAME = "RivalsPureCFrameGui_Optimized"
+local GUI_NAME = "RivalsPureCFrameGui_Fixed"
 local parentGui = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
 if parentGui:FindFirstChild(GUI_NAME) then
@@ -79,7 +79,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "Pro CFrame + Optimized"
+title.Text = "Pro CFrame + Lag Free"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 12
 title.Font = Enum.Font.GothamBold
@@ -270,7 +270,7 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ==========================================
--- 5. 최적화된 메인 렌더링 루프
+-- 5. 가벼워진 메인 렌더링 루프 (UI 텍스트 변경 원천 제거)
 -- ==========================================
 RunService.RenderStepped:Connect(function(dt)
     if not char or not char.Parent or not hrp or not hrp.Parent then return end
@@ -292,14 +292,13 @@ RunService.RenderStepped:Connect(function(dt)
         neck.Transform = CFrame.new()
     end
 
-    -- 4) 허리 관절 꺾기
+    -- 4) 허리 관절 꺾기 (UI Text 갱신 코드를 제거하여 렉 유발 방지)
     if waist and origWaistC0 then
         if isRandomMode then
             local now = tick()
             if now - lastRandomTick >= RANDOM_INTERVAL then
                 lastRandomTick = now
                 waistPitch = math.random(-180, 180)
-                waistLbl.Text = string.format("Waist Random: %d°", waistPitch)
             end
         end
         waist.C0 = CFrame.new(origWaistC0.Position) * CFrame.fromAxisAngle(Vector3.xAxis, math.rad(waistPitch))
