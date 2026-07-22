@@ -6,7 +6,7 @@ local LocalPlayer = Players.LocalPlayer
 -- ==========================================
 -- 1. 기존 GUI 정리
 -- ==========================================
-local GUI_NAME = "RivalsProAllInOneGui"
+local GUI_NAME = "RivalsPureCFrameGui"
 local parentGui = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
 if parentGui:FindFirstChild(GUI_NAME) then
@@ -26,46 +26,27 @@ local lastRandomTick = 0
 local RANDOM_INTERVAL = 0.05
 
 local char, hum, hrp, head, upperTorso, neck, waist
-local ikTargetPart, ikControl
+local origNeckC0, origWaistC0
 
 local function setupCharacter(character)
     if not character then return end
     char = character
-    hum = char:WaitForChild("Humanoid", 5)
-    hrp = char:WaitForChild("HumanoidRootPart", 5)
-    head = char:WaitForChild("Head", 5)
-    upperTorso = char:WaitForChild("UpperTorso", 5)
+    hum = character:WaitForChild("Humanoid", 5)
+    hrp = character:WaitForChild("HumanoidRootPart", 5)
+    head = character:WaitForChild("Head", 5)
+    upperTorso = character:WaitForChild("UpperTorso", 5)
 
     if not head or not upperTorso then return end
 
     neck = head:FindFirstChild("Neck")
     waist = upperTorso:FindFirstChild("Waist")
 
+    if neck then origNeckC0 = neck.C0 end
+    if waist then origWaistC0 = waist.C0 end
+
     if hum and isSpinMode then
         hum.AutoRotate = false
     end
-
-    -- IK 타깃 파트 및 IKControl 재설정 (FE 안전 적용)
-    if ikTargetPart then ikTargetPart:Destroy() end
-    if ikControl then ikControl:Destroy() end
-
-    ikTargetPart = Instance.new("Part")
-    ikTargetPart.Name = "ProIKTarget"
-    ikTargetPart.Size = Vector3.new(0.2, 0.2, 0.2)
-    ikTargetPart.Transparency = 1
-    ikTargetPart.CanCollide = false
-    ikTargetPart.Anchored = true
-    ikTargetPart.Parent = character
-
-    ikControl = Instance.new("IKControl")
-    ikControl.Name = "ProWaistIK"
-    ikControl.Type = Enum.IKControlType.LookAt
-    ikControl.ChainRoot = upperTorso
-    ikControl.EndEffector = upperTorso
-    ikControl.Target = ikTargetPart
-    ikControl.Weight = 1
-    ikControl.SmoothTime = 0.05
-    ikControl.Parent = hum
 end
 
 if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
@@ -94,7 +75,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "FE Pro CFrame + Spin + IK Control"
+title.Text = "Pure CFrame + Spin Control"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 13
 title.Font = Enum.Font.GothamBold
@@ -251,24 +232,24 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ==========================================
--- 5. 실시간 렌더링 루프 (IK + CFrame + Body Spin)
+-- 5. 실시간 CFrame 렌더링 루프 (비틀림 없는 순수 회전)
 -- ==========================================
 RunService.RenderStepped:Connect(function(dt)
     if not char or not char.Parent then return end
 
-    -- 1) 전체 몸체 스핀
+    -- 1) 전체 몸체 스핀 (HumanoidRootPart 회전)
     if isSpinMode and hrp then
         local rotRad = math.rad(spinSpeed * (dt * 60))
         hrp.CFrame = hrp.CFrame * CFrame.Angles(0, rotRad, 0)
     end
 
     -- 2) 목 관절 굽히기 (-180 ~ 180)
-    if neck then
-        neck.C0 = CFrame.new(neck.C0.Position) * CFrame.Angles(math.rad(neckPitch), 0, 0)
+    if neck and origNeckC0 then
+        neck.C0 = origNeckC0 * CFrame.Angles(math.rad(neckPitch), 0, 0)
     end
 
-    -- 3) 허리 관절 IKControl 타깃 연산 및 난수 적용 (-180 ~ 180)
-    if ikTargetPart and hrp then
+    -- 3) 허리 관절 굽히기 및 난수 처리 (-180 ~ 180)
+    if waist and origWaistC0 then
         if isRandomMode then
             local now = tick()
             if now - lastRandomTick >= RANDOM_INTERVAL then
@@ -277,13 +258,6 @@ RunService.RenderStepped:Connect(function(dt)
                 waistLbl.Text = string.format("Waist Random: %d°", waistPitch)
             end
         end
-
-        local rad = math.rad(waistPitch)
-        local dist = 10
-        local basePos = hrp.Position + Vector3.new(0, 1.5, 0)
-        local lookDir = hrp.CFrame.LookVector
-        local upDir = hrp.CFrame.UpVector
-        
-        ikTargetPart.Position = basePos + (lookDir * (dist * math.cos(rad))) + (upDir * (dist * math.sin(rad)))
+        waist.C0 = origWaistC0 * CFrame.Angles(math.rad(waistPitch), 0, 0)
     end
 end)
