@@ -18,14 +18,19 @@ if P.Character then setup(P.Character) end
 P.CharacterAdded:Connect(setup)
 
 local gui = Instance.new("ScreenGui", (gethui and gethui()) or P:WaitForChild("PlayerGui"))
+gui.ResetOnSpawn = false
+
+-- UI 토글 버튼
 local tog = Instance.new("TextButton", gui)
 tog.Size, tog.Position, tog.Text = UDim2.new(0, 50, 0, 30), UDim2.new(0, 10, 0, 10), "UI"
-tog.BackgroundColor3, tog.TextColor3 = Color3.fromRGB(30,30,30), Color3.fromRGB(255,255,255)
+tog.BackgroundColor3, tog.TextColor3, tog.Active, tog.Draggable = Color3.fromRGB(30,30,30), Color3.fromRGB(255,255,255), true, true
 
+-- 메인 프레임 (Active = true 필수)
 local f = Instance.new("Frame", gui)
-f.Size, f.Position, f.BackgroundColor3, f.Visible = UDim2.new(0, 200, 0, 340), UDim2.new(0.05,0,0.2,0), Color3.fromRGB(20,20,20), true
+f.Size, f.Position, f.BackgroundColor3, f.Visible, f.Active = UDim2.new(0, 200, 0, 340), UDim2.new(0.05,0,0.2,0), Color3.fromRGB(20,20,20), true, true
 tog.MouseButton1Click:Connect(function() f.Visible = not f.Visible end)
 
+-- UI 드래그
 local dragging, dragStart, startPos
 f.InputBegan:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
@@ -46,7 +51,7 @@ local y = 5
 local function addBtn(txt, cb)
     local b = Instance.new("TextButton", f)
     b.Size, b.Position, b.Text = UDim2.new(0.9,0,0,24), UDim2.new(0.05,0,0,y), txt
-    b.BackgroundColor3, b.TextColor3 = Color3.fromRGB(40,40,40), Color3.fromRGB(255,255,255)
+    b.BackgroundColor3, b.TextColor3, b.Active = Color3.fromRGB(40,40,40), Color3.fromRGB(255,255,255), true
     b.MouseButton1Click:Connect(cb)
     y = y + 28
     return b
@@ -63,16 +68,18 @@ local function addSld(name, min, max, def, cb)
     l.TextSize = 10
     y = y + 15
     local bar = Instance.new("TextButton", f)
-    bar.Size, bar.Position, bar.Text, bar.BackgroundColor3 = UDim2.new(0.9,0,0,10), UDim2.new(0.05,0,0,y), "", Color3.fromRGB(40,40,40)
+    bar.Size, bar.Position, bar.Text, bar.BackgroundColor3, bar.Active = UDim2.new(0.9,0,0,12), UDim2.new(0.05,0,0,y), "", Color3.fromRGB(40,40,40), true
     local fill = Instance.new("Frame", bar)
     fill.Size, fill.BackgroundColor3 = UDim2.new((def-min)/(max-min),0,1,0), Color3.fromRGB(200,200,200)
-    y = y + 16
+    y = y + 18
 
     bar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local sliding = true
             local function update(i)
-                local r = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+                local sizeX = bar.AbsoluteSize.X
+                if sizeX <= 0 then return end
+                local r = math.clamp((i.Position.X - bar.AbsolutePosition.X) / sizeX, 0, 1)
                 fill.Size = UDim2.new(r,0,1,0)
                 local v = math.floor(min + (max-min)*r)
                 l.Text = name..": "..v
