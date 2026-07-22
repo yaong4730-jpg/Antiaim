@@ -3,65 +3,88 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
--- 기존 GUI 정리
-if game:GetService("CoreGui"):FindFirstChild("RivalsIkTest3Gui") then
-    game:GetService("CoreGui").RivalsIkTest3Gui:Destroy()
+-- ==========================================
+-- 1. 기존 GUI 정리
+-- ==========================================
+local GUI_NAME = "RivalsProAllInOneGui"
+local parentGui = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
+
+if parentGui:FindFirstChild(GUI_NAME) then
+    parentGui[GUI_NAME]:Destroy()
 end
 
-local pitchAngle = 0
+-- ==========================================
+-- 2. 상태 변수 및 캐싱
+-- ==========================================
+local neckPitch = 0
+local waistPitch = 0
+local spinSpeed = 90
 local isRandomMode = false
-local ikControl = nil
-local ikTargetPart = nil
+local isSpinMode = false
 
-local function setupIK(character)
-    local humanoid = character:WaitForChild("Humanoid", 5)
-    local upperTorso = character:WaitForChild("UpperTorso", 5)
-    local rootPart = character:WaitForChild("HumanoidRootPart", 5)
-    if not humanoid or not upperTorso or not rootPart then return end
+local lastRandomTick = 0
+local RANDOM_INTERVAL = 0.05
 
+local char, hum, hrp, head, upperTorso, neck, waist
+local ikTargetPart, ikControl
+
+local function setupCharacter(character)
+    if not character then return end
+    char = character
+    hum = char:WaitForChild("Humanoid", 5)
+    hrp = char:WaitForChild("HumanoidRootPart", 5)
+    head = char:WaitForChild("Head", 5)
+    upperTorso = char:WaitForChild("UpperTorso", 5)
+
+    if not head or not upperTorso then return end
+
+    neck = head:FindFirstChild("Neck")
+    waist = upperTorso:FindFirstChild("Waist")
+
+    if hum and isSpinMode then
+        hum.AutoRotate = false
+    end
+
+    -- IK 타깃 파트 및 IKControl 재설정 (FE 안전 적용)
     if ikTargetPart then ikTargetPart:Destroy() end
     if ikControl then ikControl:Destroy() end
 
-    -- 1) IK 타깃 역할을 할 투명 파트 생성
     ikTargetPart = Instance.new("Part")
-    ikTargetPart.Name = "IKTarget3"
+    ikTargetPart.Name = "ProIKTarget"
     ikTargetPart.Size = Vector3.new(0.2, 0.2, 0.2)
     ikTargetPart.Transparency = 1
     ikTargetPart.CanCollide = false
     ikTargetPart.Anchored = true
     ikTargetPart.Parent = character
 
-    -- 2) IKControl 생성
     ikControl = Instance.new("IKControl")
-    ikControl.Name = "WaistIK_LookAt"
+    ikControl.Name = "ProWaistIK"
     ikControl.Type = Enum.IKControlType.LookAt
     ikControl.ChainRoot = upperTorso
     ikControl.EndEffector = upperTorso
     ikControl.Target = ikTargetPart
     ikControl.Weight = 1
     ikControl.SmoothTime = 0.05
-    ikControl.Parent = humanoid
+    ikControl.Parent = hum
 end
 
-if LocalPlayer.Character then
-    setupIK(LocalPlayer.Character)
-end
-LocalPlayer.CharacterAdded:Connect(setupIK)
+if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(setupCharacter)
 
 -- ==========================================
--- UI 생성
+-- 3. UI 생성
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RivalsIkTest3Gui"
-screenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+screenGui.Name = GUI_NAME
+screenGui.ResetOnSpawn = false
+screenGui.Parent = parentGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 260, 0, 145)
-mainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+mainFrame.Size = UDim2.new(0, 260, 0, 300)
+mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
-mainFrame.Draggable = true
 mainFrame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
@@ -71,122 +94,196 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "Test 3: IKControl + 100x Random"
+title.Text = "FE Pro CFrame + Spin + IK Control"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 13
-title.Font = Enum.Font.SourceSansBold
+title.Font = Enum.Font.GothamBold
 title.Parent = mainFrame
 
--- 모드 전환 버튼
-local modeButton = Instance.new("TextButton")
-modeButton.Size = UDim2.new(0.9, 0, 0, 24)
-modeButton.Position = UDim2.new(0.05, 0, 0, 32)
-modeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
-modeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-modeButton.TextSize = 12
-modeButton.Font = Enum.Font.SourceSansBold
-modeButton.Text = "Mode: Slider (-90° ~ 90°)"
-modeButton.Parent = mainFrame
-
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 4)
-btnCorner.Parent = modeButton
-
--- 슬라이더 컨테이너
-local sliderContainer = Instance.new("Frame")
-sliderContainer.Size = UDim2.new(0.9, 0, 0, 50)
-sliderContainer.Position = UDim2.new(0.05, 0, 0, 62)
-sliderContainer.BackgroundTransparency = 1
-sliderContainer.Parent = mainFrame
-
-local sliderLabel = Instance.new("TextLabel")
-sliderLabel.Size = UDim2.new(1, 0, 0, 18)
-sliderLabel.BackgroundTransparency = 1
-sliderLabel.Text = string.format("Pitch: %d°", pitchAngle)
-sliderLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-sliderLabel.TextSize = 12
-sliderLabel.Font = Enum.Font.SourceSans
-sliderLabel.TextXAlignment = Enum.TextXAlignment.Center
-sliderLabel.Parent = sliderContainer
-
-local bgBar = Instance.new("TextButton")
-bgBar.Size = UDim2.new(1, 0, 0, 12)
-bgBar.Position = UDim2.new(0, 0, 0, 24)
-bgBar.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-bgBar.AutoButtonColor = false
-bgBar.Text = ""
-bgBar.Parent = sliderContainer
-
-local fillBar = Instance.new("Frame")
-fillBar.Size = UDim2.new(0.5, 0, 1, 0)
-fillBar.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-fillBar.BorderSizePixel = 0
-fillBar.Parent = bgBar
-
--- 모드 전환 버튼 이벤트
-modeButton.MouseButton1Click:Connect(function()
-    isRandomMode = not isRandomMode
-    if isRandomMode then
-        modeButton.Text = "Mode: 100x Random (-100° ~ 100°)"
-        modeButton.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
-    else
-        modeButton.Text = "Mode: Slider (-90° ~ 90°)"
-        modeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+-- 창 드래그
+local draggingWindow, dragStart, startPos
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingWindow = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
     end
 end)
 
-local dragging = false
-local function updateInput(input)
-    if isRandomMode then return end
-    local pos = math.clamp((input.Position.X - bgBar.AbsolutePosition.X) / bgBar.AbsoluteSize.X, 0, 1)
-    fillBar.Size = UDim2.new(pos, 0, 1, 0)
-    pitchAngle = math.floor(-90 + (180 * pos))
-    sliderLabel.Text = string.format("Pitch: %d°", pitchAngle)
+-- UI 요소 생성 함수
+local function createButton(text, yPos)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 26)
+    btn.Position = UDim2.new(0.05, 0, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 12
+    btn.Font = Enum.Font.GothamSemibold
+    btn.Text = text
+    btn.Parent = mainFrame
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 4)
+    btnCorner.Parent = btn
+    return btn
 end
 
-bgBar.InputBegan:Connect(function(input)
-    if not isRandomMode and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        dragging = true
-        updateInput(input)
+local function createSlider(yPos, labelText, defaultRatio, fillColor)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(0.9, 0, 0, 42)
+    container.Position = UDim2.new(0.05, 0, 0, yPos)
+    container.BackgroundTransparency = 1
+    container.Parent = mainFrame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 16)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    label.TextSize = 11
+    label.Font = Enum.Font.Gotham
+    label.Parent = container
+
+    local bgBar = Instance.new("Frame")
+    bgBar.Size = UDim2.new(1, 0, 0, 10)
+    bgBar.Position = UDim2.new(0, 0, 0, 20)
+    bgBar.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    bgBar.BorderSizePixel = 0
+    bgBar.Parent = container
+
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(1, 0)
+    bgCorner.Parent = bgBar
+
+    local fillBar = Instance.new("Frame")
+    fillBar.Size = UDim2.new(defaultRatio, 0, 1, 0)
+    fillBar.BackgroundColor3 = fillColor or Color3.fromRGB(0, 170, 255)
+    fillBar.BorderSizePixel = 0
+    fillBar.Parent = bgBar
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fillBar
+
+    local trigger = Instance.new("TextButton")
+    trigger.Size = UDim2.new(1, 0, 1, 8)
+    trigger.Position = UDim2.new(0, 0, 0, -4)
+    trigger.BackgroundTransparency = 1
+    trigger.Text = ""
+    trigger.Parent = bgBar
+
+    return trigger, bgBar, fillBar, label
+end
+
+-- 버튼 및 슬라이더 배치
+local randomButton = createButton("Waist Random: OFF", 35)
+local spinButton = createButton("Body Spin Mode: OFF", 65)
+
+local neckTrig, neckBg, neckFill, neckLbl = createSlider(98, "Neck Pitch: 0°", 0.5)
+local waistTrig, waistBg, waistFill, waistLbl = createSlider(148, "Waist Pitch: 0°", 0.5, Color3.fromRGB(255, 100, 100))
+local spinTrig, spinBg, spinFill, spinLbl = createSlider(198, "Spin Speed: 90", 0.5, Color3.fromRGB(150, 255, 100))
+
+-- ==========================================
+-- 4. 이벤트 핸들러
+-- ==========================================
+randomButton.MouseButton1Click:Connect(function()
+    isRandomMode = not isRandomMode
+    randomButton.Text = "Waist Random: " .. (isRandomMode and "ON" or "OFF")
+    randomButton.BackgroundColor3 = isRandomMode and Color3.fromRGB(0, 120, 200) or Color3.fromRGB(60, 60, 75)
+end)
+
+spinButton.MouseButton1Click:Connect(function()
+    isSpinMode = not isSpinMode
+    spinButton.Text = "Body Spin Mode: " .. (isSpinMode and "ON" or "OFF")
+    spinButton.BackgroundColor3 = isSpinMode and Color3.fromRGB(0, 180, 100) or Color3.fromRGB(60, 60, 75)
+    if hum then hum.AutoRotate = not isSpinMode end
+end)
+
+local activeSlider = nil
+local function registerSlider(trigger, bg, fill, label, minVal, maxVal, callback)
+    trigger.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            activeSlider = { bg = bg, fill = fill, label = label, min = minVal, max = maxVal, cb = callback }
+            local relX = math.clamp((input.Position.X - bg.AbsolutePosition.X) / bg.AbsoluteSize.X, 0, 1)
+            fill.Size = UDim2.new(relX, 0, 1, 0)
+            local val = math.floor(minVal + (maxVal - minVal) * relX)
+            callback(val, label)
+        end
+    end)
+end
+
+registerSlider(neckTrig, neckBg, neckFill, neckLbl, -180, 180, function(val, lbl)
+    neckPitch = val
+    lbl.Text = string.format("Neck Pitch: %d°", val)
+end)
+
+registerSlider(waistTrig, waistBg, waistFill, waistLbl, -180, 180, function(val, lbl)
+    if not isRandomMode then
+        waistPitch = val
+        lbl.Text = string.format("Waist Pitch: %d°", val)
+    end
+end)
+
+registerSlider(spinTrig, spinBg, spinFill, spinLbl, 0, 180, function(val, lbl)
+    spinSpeed = val
+    lbl.Text = string.format("Spin Speed: %d", val)
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if draggingWindow then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        elseif activeSlider then
+            local relX = math.clamp((input.Position.X - activeSlider.bg.AbsolutePosition.X) / activeSlider.bg.AbsoluteSize.X, 0, 1)
+            activeSlider.fill.Size = UDim2.new(relX, 0, 1, 0)
+            local val = math.floor(activeSlider.min + (activeSlider.max - activeSlider.min) * relX)
+            activeSlider.cb(val, activeSlider.label)
+        end
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if not isRandomMode and dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        updateInput(input)
+        draggingWindow = false
+        activeSlider = nil
     end
 end)
 
 -- ==========================================
--- 실시간 IK 타깃 위치 연산 및 100배 빠른 랜덤 모드
+-- 5. 실시간 렌더링 루프 (IK + CFrame + Body Spin)
 -- ==========================================
-RunService.RenderStepped:Connect(function()
-    local char = LocalPlayer.Character
-    if char and ikTargetPart and ikControl then
-        local rootPart = char:FindFirstChild("HumanoidRootPart")
-        
-        if rootPart then
-            -- 기존 속도(3)에 100을 곱해 300으로 설정하여 100배 빠르게 왕복
-            if isRandomMode then
-                pitchAngle = math.floor(math.sin(tick() * 300) * 100)
-                sliderLabel.Text = string.format("100x Random Pitch: %d°", pitchAngle)
+RunService.RenderStepped:Connect(function(dt)
+    if not char or not char.Parent then return end
+
+    -- 1) 전체 몸체 스핀
+    if isSpinMode and hrp then
+        local rotRad = math.rad(spinSpeed * (dt * 60))
+        hrp.CFrame = hrp.CFrame * CFrame.Angles(0, rotRad, 0)
+    end
+
+    -- 2) 목 관절 굽히기 (-180 ~ 180)
+    if neck then
+        neck.C0 = CFrame.new(neck.C0.Position) * CFrame.Angles(math.rad(neckPitch), 0, 0)
+    end
+
+    -- 3) 허리 관절 IKControl 타깃 연산 및 난수 적용 (-180 ~ 180)
+    if ikTargetPart and hrp then
+        if isRandomMode then
+            local now = tick()
+            if now - lastRandomTick >= RANDOM_INTERVAL then
+                lastRandomTick = now
+                waistPitch = math.random(-180, 180)
+                waistLbl.Text = string.format("Waist Random: %d°", waistPitch)
             end
-
-            local rad = math.rad(pitchAngle)
-            local dist = 10
-            
-            local basePos = rootPart.Position + Vector3.new(0, 1.5, 0)
-            local lookDir = rootPart.CFrame.LookVector
-            local upDir = rootPart.CFrame.UpVector
-            
-            local targetPos = basePos + (lookDir * (dist * math.cos(rad))) + (upDir * (dist * math.sin(rad)))
-            ikTargetPart.Position = targetPos
         end
+
+        local rad = math.rad(waistPitch)
+        local dist = 10
+        local basePos = hrp.Position + Vector3.new(0, 1.5, 0)
+        local lookDir = hrp.CFrame.LookVector
+        local upDir = hrp.CFrame.UpVector
+        
+        ikTargetPart.Position = basePos + (lookDir * (dist * math.cos(rad))) + (upDir * (dist * math.sin(rad)))
     end
 end)
