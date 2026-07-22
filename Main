@@ -20,17 +20,14 @@ P.CharacterAdded:Connect(setup)
 local gui = Instance.new("ScreenGui", (gethui and gethui()) or P:WaitForChild("PlayerGui"))
 gui.ResetOnSpawn = false
 
--- UI 토글 버튼
 local tog = Instance.new("TextButton", gui)
 tog.Size, tog.Position, tog.Text = UDim2.new(0, 50, 0, 30), UDim2.new(0, 10, 0, 10), "UI"
-tog.BackgroundColor3, tog.TextColor3, tog.Active, tog.Draggable = Color3.fromRGB(30,30,30), Color3.fromRGB(255,255,255), true, true
+tog.BackgroundColor3, tog.TextColor3, tog.Active = Color3.fromRGB(30,30,30), Color3.fromRGB(255,255,255), true
 
--- 메인 프레임 (Active = true 필수)
 local f = Instance.new("Frame", gui)
 f.Size, f.Position, f.BackgroundColor3, f.Visible, f.Active = UDim2.new(0, 200, 0, 340), UDim2.new(0.05,0,0.2,0), Color3.fromRGB(20,20,20), true, true
-tog.MouseButton1Click:Connect(function() f.Visible = not f.Visible end)
+tog.Activated:Connect(function() f.Visible = not f.Visible end)
 
--- UI 드래그
 local dragging, dragStart, startPos
 f.InputBegan:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
@@ -52,7 +49,7 @@ local function addBtn(txt, cb)
     local b = Instance.new("TextButton", f)
     b.Size, b.Position, b.Text = UDim2.new(0.9,0,0,24), UDim2.new(0.05,0,0,y), txt
     b.BackgroundColor3, b.TextColor3, b.Active = Color3.fromRGB(40,40,40), Color3.fromRGB(255,255,255), true
-    b.MouseButton1Click:Connect(cb)
+    b.Activated:Connect(cb)
     y = y + 28
     return b
 end
