@@ -1,57 +1,39 @@
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-
-local player = Players.LocalPlayer
-local utility = require(ReplicatedStorage.Modules.Utility)
-local cameraController = require(player.PlayerScripts.Controllers.CameraController)
-
-local updateRotation = ReplicatedStorage.Remotes.Replication.Fighter.UpdateCameraRotation
+local LocalPlayer = Players.LocalPlayer
 
 -- 기존 GUI 정리
-if game:GetService("CoreGui"):FindFirstChild("RivalsRemoteTestGui") then
-    game:GetService("CoreGui").RivalsRemoteTestGui:Destroy()
+if game:GetService("CoreGui"):FindFirstChild("RivalsMotor6DTestGui") then
+    game:GetService("CoreGui").RivalsMotor6DTestGui:Destroy()
 end
 
 local pitchAngle = 0
 local isRandomMode = false
 local lastRandomTick = 0
 local randomInterval = 0.05 -- 0.05초 텀
+local originalC0 = nil
 
--- 스레드 중복 실행 방지
-_G.CameraRotationThread = (_G.CameraRotationThread or 0) + 1
-local thread = _G.CameraRotationThread
+local function setupMotor6D(character)
+    local upperTorso = character:WaitForChild("UpperTorso", 5)
+    if not upperTorso then return end
+    local waist = upperTorso:WaitForChild("Waist", 5)
+    if not waist then return end
 
--- 서버로 회전 데이터 전송 루프 (FE 동기화)
-task.spawn(function()
-    while thread == _G.CameraRotationThread do
-        local rotation = cameraController.Rotation
-        local yaw = rotation and rotation.Y or 0
+    -- 원래 허리 관절 기본값 백업
+    originalC0 = waist.C0
+end
 
-        if isRandomMode then
-            local currentTick = tick()
-            if currentTick - lastRandomTick >= randomInterval then
-                lastRandomTick = currentTick
-                pitchAngle = math.random(-150, 150) -- -150도 ~ 150도 랜덤 TP
-            end
-        end
-
-        pcall(function()
-            updateRotation:FireServer(
-                utility:EncodeCameraRotation(Vector2.new(math.rad(pitchAngle), yaw)),
-                nil
-            )
-        end)
-
-        task.wait()
-    end
-end)
+if LocalPlayer.Character then
+    setupMotor6D(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(setupMotor6D)
 
 -- ==========================================
--- UI 생성 (슬라이더 및 모드 전환)
+-- UI 생성
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RivalsRemoteTestGui"
+screenGui.Name = "RivalsMotor6DTestGui"
 screenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
 
 local mainFrame = Instance.new("Frame")
@@ -70,7 +52,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "Rivals FE Remote Sync"
+title.Text = "Test: Motor6D C0 (Local Only)"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 12
 title.Font = Enum.Font.SourceSansBold
@@ -84,7 +66,7 @@ modeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
 modeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 modeButton.TextSize = 12
 modeButton.Font = Enum.Font.SourceSansBold
-modeButton.Text = "Mode: Slider (-150° ~ 150°)"
+modeButton.Text = "Mode: Slider (-100° ~ 100°)"
 modeButton.Parent = mainFrame
 
 local btnCorner = Instance.new("UICorner")
@@ -126,10 +108,10 @@ fillBar.Parent = bgBar
 modeButton.MouseButton1Click:Connect(function()
     isRandomMode = not isRandomMode
     if isRandomMode then
-        modeButton.Text = "Mode: TP Random (0.05s, ±150°)"
+        modeButton.Text = "Mode: TP Random (0.05s, ±100°)"
         modeButton.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
     else
-        modeButton.Text = "Mode: Slider (-150° ~ 150°)"
+        modeButton.Text = "Mode: Slider (-100° ~ 100°)"
         modeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
     end
 end)
@@ -139,7 +121,7 @@ local function updateInput(input)
     if isRandomMode then return end
     local pos = math.clamp((input.Position.X - bgBar.AbsolutePosition.X) / bgBar.AbsoluteSize.X, 0, 1)
     fillBar.Size = UDim2.new(pos, 0, 1, 0)
-    pitchAngle = math.floor(-150 + (300 * pos))
+    pitchAngle = math.floor(-100 + (200 * pos))
     sliderLabel.Text = string.format("Pitch: %d°", pitchAngle)
 end
 
@@ -159,5 +141,32 @@ end)
 UserInputService.InputChanged:Connect(function(input)
     if not isRandomMode and dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         updateInput(input)
+    end
+end)
+
+-- ==========================================
+-- 매 프레임 Motor6D C0 값 직접 반영
+-- ==========================================
+RunService.RenderStepped:Connect(function()
+    local char = LocalPlayer.Character
+    if char then
+        local upperTorso = char:FindFirstChild("UpperTorso")
+        if upperTorso then
+            local waist = upperTorso:FindFirstChild("Waist")
+            if waist and originalC0 then
+                if isRandomMode then
+                    local currentTick = tick()
+                    if currentTick - lastRandomTick >= randomInterval then
+                        lastRandomTick = currentTick
+                        pitchAngle = math.random(-100, 100)
+                    end
+                    sliderLabel.Text = string.format("TP Random Pitch: %d°", pitchAngle)
+                end
+
+                -- Motor6D C0 수치를 직접 회전시켜 상체 꺾기 반영
+                local rad = math.rad(pitchAngle)
+                waist.C0 = originalC0 * CFrame.Angles(rad, 0, 0)
+            end
+        end
     end
 end)
