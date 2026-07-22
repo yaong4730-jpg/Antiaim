@@ -7,7 +7,7 @@ local Mouse = LocalPlayer:GetMouse()
 -- ==========================================
 -- 1. 기존 GUI 정리
 -- ==========================================
-local GUI_NAME = "RivalsPureCFrameGui_VoidSpamDeep"
+local GUI_NAME = "RivalsPureCFrameGui_Optimized"
 local parentGui = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
 if parentGui:FindFirstChild(GUI_NAME) then
@@ -45,8 +45,8 @@ local function setupCharacter(character)
     neck = head:FindFirstChild("Neck")
     waist = upperTorso:FindFirstChild("Waist")
 
-    if neck then origNeckC0 = neck.C0 end
-    if waist then origWaistC0 = waist.C0 end
+    if neck and not origNeckC0 then origNeckC0 = neck.C0 end
+    if waist and not origWaistC0 then origWaistC0 = waist.C0 end
 
     if hum and isSpinMode then
         hum.AutoRotate = false
@@ -79,7 +79,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "Pro CFrame + Spin + Void Spam (-10k)"
+title.Text = "Pro CFrame + Optimized"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 12
 title.Font = Enum.Font.GothamBold
@@ -212,7 +212,7 @@ voidSpamButton.MouseButton1Click:Connect(function()
 end)
 
 Mouse.Button1Down:Connect(function()
-    if isClickTpMode and hrp and Mouse.Target then
+    if isClickTpMode and hrp and hrp.Parent and Mouse.Target then
         local hitPos = Mouse.Hit.Position
         hrp.CFrame = CFrame.new(hitPos + Vector3.new(0, 3, 0))
     end
@@ -270,19 +270,18 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ==========================================
--- 5. 메인 렌더링 루프
+-- 5. 최적화된 메인 렌더링 루프
 -- ==========================================
 RunService.RenderStepped:Connect(function(dt)
-    if not char or not char.Parent then return end
+    if not char or not char.Parent or not hrp or not hrp.Parent then return end
 
-    -- 1) 보이드 스팸 활성화 시 Y = -10,000으로 강제 고정 및 스팸
-    if isVoidSpamMode and hrp then
-        local currentPos = hrp.Position
-        hrp.CFrame = CFrame.new(currentPos.X, -10000, currentPos.Z)
+    -- 1) 보이드 스팸 활성화 시 Y = -10,000으로 고정
+    if isVoidSpamMode then
+        hrp.CFrame = CFrame.new(hrp.Position.X, -10000, hrp.Position.Z)
     end
 
     -- 2) 전체 몸체 스핀
-    if isSpinMode and hrp then
+    if isSpinMode then
         local rotRad = math.rad(spinSpeed * (dt * 60))
         hrp.CFrame = hrp.CFrame * CFrame.Angles(0, rotRad, 0)
     end
@@ -308,7 +307,7 @@ RunService.RenderStepped:Connect(function(dt)
     end
 
     -- 5) 카메라 동기화
-    if isCamSync and head then
+    if isCamSync and head and head.Parent then
         local cam = workspace.CurrentCamera
         cam.CameraType = Enum.CameraType.Scriptable
         cam.CFrame = head.CFrame * CFrame.new(0, 1.5, 8) 
