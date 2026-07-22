@@ -6,7 +6,7 @@ local LocalPlayer = Players.LocalPlayer
 -- ==========================================
 -- 1. 기존 GUI 정리
 -- ==========================================
-local GUI_NAME = "RivalsPureCFrameGui_Fix"
+local GUI_NAME = "RivalsPureCFrameGui_CamSync"
 local parentGui = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
 if parentGui:FindFirstChild(GUI_NAME) then
@@ -21,6 +21,7 @@ local waistPitch = 0
 local spinSpeed = 90
 local isRandomMode = false
 local isSpinMode = false
+local isCamSync = false -- 카메라 동기화 상태 변수
 
 local lastRandomTick = 0
 local RANDOM_INTERVAL = 0.05
@@ -41,7 +42,7 @@ local function setupCharacter(character)
     neck = head:FindFirstChild("Neck")
     waist = upperTorso:FindFirstChild("Waist")
 
-    -- 순수 C0 위치값만 캐싱 (기본적으로 틀어져 있는 각도 무시)
+    -- 순수 C0 위치값 캐싱
     if neck then origNeckC0 = neck.C0 end
     if waist then origWaistC0 = waist.C0 end
 
@@ -62,7 +63,7 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = parentGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 260, 0, 300)
+mainFrame.Size = UDim2.new(0, 260, 0, 330) -- UI 창 세로 길이 늘림
 mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 mainFrame.BorderSizePixel = 0
@@ -76,7 +77,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "Anti-Twist CFrame Control"
+title.Text = "Anti-Twist + Cam Sync"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 13
 title.Font = Enum.Font.GothamBold
@@ -160,10 +161,11 @@ end
 -- 버튼 및 슬라이더 배치
 local randomButton = createButton("Waist Random: OFF", 35)
 local spinButton = createButton("Body Spin Mode: OFF", 65)
+local camSyncButton = createButton("Camera Sync: OFF", 95) -- 카메라 동기화 버튼 추가
 
-local neckTrig, neckBg, neckFill, neckLbl = createSlider(98, "Neck Pitch: 0°", 0.5)
-local waistTrig, waistBg, waistFill, waistLbl = createSlider(148, "Waist Pitch: 0°", 0.5, Color3.fromRGB(255, 100, 100))
-local spinTrig, spinBg, spinFill, spinLbl = createSlider(198, "Spin Speed: 90", 0.5, Color3.fromRGB(150, 255, 100))
+local neckTrig, neckBg, neckFill, neckLbl = createSlider(130, "Neck Pitch: 0°", 0.5)
+local waistTrig, waistBg, waistFill, waistLbl = createSlider(180, "Waist Pitch: 0°", 0.5, Color3.fromRGB(255, 100, 100))
+local spinTrig, spinBg, spinFill, spinLbl = createSlider(230, "Spin Speed: 90", 0.5, Color3.fromRGB(150, 255, 100))
 
 -- ==========================================
 -- 4. 이벤트 핸들러
@@ -179,6 +181,19 @@ spinButton.MouseButton1Click:Connect(function()
     spinButton.Text = "Body Spin Mode: " .. (isSpinMode and "ON" or "OFF")
     spinButton.BackgroundColor3 = isSpinMode and Color3.fromRGB(0, 180, 100) or Color3.fromRGB(60, 60, 75)
     if hum then hum.AutoRotate = not isSpinMode end
+end)
+
+camSyncButton.MouseButton1Click:Connect(function()
+    isCamSync = not isCamSync
+    camSyncButton.Text = "Camera Sync: " .. (isCamSync and "ON" or "OFF")
+    camSyncButton.BackgroundColor3 = isCamSync and Color3.fromRGB(180, 50, 200) or Color3.fromRGB(60, 60, 75)
+    
+    -- 버튼을 끌 때 카메라 원래대로 복구
+    local cam = workspace.CurrentCamera
+    if not isCamSync then
+        cam.CameraType = Enum.CameraType.Custom
+        if hum then cam.CameraSubject = hum end
+    end
 end)
 
 local activeSlider = nil
@@ -233,7 +248,7 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 -- ==========================================
--- 5. 비틀림 방지 CFrame 렌더링 루프
+-- 5. 비틀림 방지 CFrame 렌더링 루프 + 카메라 동기화
 -- ==========================================
 RunService.RenderStepped:Connect(function(dt)
     if not char or not char.Parent then return end
@@ -244,13 +259,13 @@ RunService.RenderStepped:Connect(function(dt)
         hrp.CFrame = hrp.CFrame * CFrame.Angles(0, rotRad, 0)
     end
 
-    -- 2) 목 관절: 위치값만 가져오고 단일 X축으로만 꺾음 + 기본 애니메이션 덮어쓰기 차단
+    -- 2) 목 관절 꺾기 (비틀림 차단)
     if neck and origNeckC0 then
         neck.C0 = CFrame.new(origNeckC0.Position) * CFrame.fromAxisAngle(Vector3.xAxis, math.rad(neckPitch))
-        neck.Transform = CFrame.new() -- 숨쉬기 애니메이션 등으로 인한 비틀림 원천 차단
+        neck.Transform = CFrame.new()
     end
 
-    -- 3) 허리 관절: 위와 동일한 방식으로 비틀림 차단
+    -- 3) 허리 관절 꺾기 (비틀림 차단)
     if waist and origWaistC0 then
         if isRandomMode then
             local now = tick()
@@ -261,6 +276,15 @@ RunService.RenderStepped:Connect(function(dt)
             end
         end
         waist.C0 = CFrame.new(origWaistC0.Position) * CFrame.fromAxisAngle(Vector3.xAxis, math.rad(waistPitch))
-        waist.Transform = CFrame.new() -- 숨쉬기/걷기 등 허리 애니메이션의 미세한 간섭 차단
+        waist.Transform = CFrame.new()
+    end
+
+    -- 4) 카메라 완벽 동기화
+    if isCamSync and head then
+        local cam = workspace.CurrentCamera
+        cam.CameraType = Enum.CameraType.Scriptable
+        
+        -- 머리의 꺾인 각도와 몸의 회전 각도를 100% 반영하여 머리 뒤(8스터드 거리)에서 바라보게 고정
+        cam.CFrame = head.CFrame * CFrame.new(0, 1.5, 8) 
     end
 end)
