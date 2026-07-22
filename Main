@@ -1,6 +1,7 @@
 local P = game:GetService("Players").LocalPlayer
 local RS = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
+local cam = workspace.CurrentCamera
 local char, hum, hrp, head, neck, waist, origN, origW
 local np, ny, wp, wy, spd = 0, 0, 0, 0, 70
 local rnd, spin, camSync, voidSpam = false, false, false, false
@@ -17,38 +18,35 @@ if P.Character then setup(P.Character) end
 P.CharacterAdded:Connect(setup)
 
 local gui = Instance.new("ScreenGui", (gethui and gethui()) or P:WaitForChild("PlayerGui"))
+local tog = Instance.new("TextButton", gui)
+tog.Size, tog.Position, tog.Text = UDim2.new(0, 50, 0, 30), UDim2.new(0, 10, 0, 10), "UI"
+tog.BackgroundColor3, tog.TextColor3 = Color3.fromRGB(30,30,30), Color3.fromRGB(255,255,255)
 
--- UI 토글 버튼 (화면 좌상단)
-local togBtn = Instance.new("TextButton", gui)
-togBtn.Size, togBtn.Position = UDim2.new(0, 50, 0, 30), UDim2.new(0, 10, 0, 10)
-togBtn.Text, togBtn.BackgroundColor3, togBtn.TextColor3 = "UI", Color3.fromRGB(30,30,30), Color3.fromRGB(255,255,255)
-
--- 메인 프레임
 local f = Instance.new("Frame", gui)
 f.Size, f.Position, f.BackgroundColor3, f.Visible = UDim2.new(0, 200, 0, 340), UDim2.new(0.05,0,0.2,0), Color3.fromRGB(20,20,20), true
-togBtn.MouseButton1Click:Connect(function() f.Visible = not f.Visible end)
+tog.MouseButton1Click:Connect(function() f.Visible = not f.Visible end)
 
--- UI 드래그 기능 (모바일/PC 지원)
 local dragging, dragStart, startPos
-f.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true; dragStart = input.Position; startPos = f.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
+f.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        dragging, dragStart, startPos = true, i.Position, f.Position
     end
 end)
-UIS.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        f.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+UIS.InputChanged:Connect(function(i)
+    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local d = i.Position - dragStart
+        f.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
     end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end)
 
 local y = 5
-local function addBtn(text, cb)
+local function addBtn(txt, cb)
     local b = Instance.new("TextButton", f)
-    b.Size, b.Position, b.Text, b.BackgroundColor3, b.TextColor3 = UDim2.new(0.9,0,0,24), UDim2.new(0.05,0,0,y), text, Color3.fromRGB(40,40,40), Color3.fromRGB(255,255,255)
+    b.Size, b.Position, b.Text = UDim2.new(0.9,0,0,24), UDim2.new(0.05,0,0,y), txt
+    b.BackgroundColor3, b.TextColor3 = Color3.fromRGB(40,40,40), Color3.fromRGB(255,255,255)
     b.MouseButton1Click:Connect(cb)
     y = y + 28
     return b
@@ -56,13 +54,7 @@ end
 
 local b1 = addBtn("Waist Random: OFF", function() rnd = not rnd b1.Text = "Waist Random: "..(rnd and "ON" or "OFF") end)
 local b2 = addBtn("Body Spin: OFF", function() spin = not spin b2.Text = "Body Spin: "..(spin and "ON" or "OFF") if hum then hum.AutoRotate = not spin end end)
-local b3 = addBtn("Camera Sync: OFF", function() 
-    camSync = not camSync 
-    b3.Text = "Camera Sync: "..(camSync and "ON" or "OFF") 
-    if not camSync then 
-        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom 
-    end 
-end)
+local b3 = addBtn("Camera Sync: OFF", function() camSync = not camSync b3.Text = "Camera Sync: "..(camSync and "ON" or "OFF") end)
 local b4 = addBtn("Void Spam: OFF", function() voidSpam = not voidSpam b4.Text = "Void Spam: "..(voidSpam and "ON" or "OFF") end)
 
 local function addSld(name, min, max, def, cb)
@@ -88,9 +80,7 @@ local function addSld(name, min, max, def, cb)
             end
             update(input)
             local conn = UIS.InputChanged:Connect(function(i)
-                if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-                    update(i)
-                end
+                if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then update(i) end
             end)
             local endConn
             endConn = UIS.InputEnded:Connect(function(i)
@@ -115,22 +105,20 @@ RS.RenderStepped:Connect(function(dt)
     if voidSpam then hrp.CFrame = CFrame.new(hrp.Position.X, -10000, hrp.Position.Z) end
     if spin then hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(spd * (dt * 60)), 0) end
     
+    local fp, fy = np, ny
+    if camSync then
+        local lv = hrp.CFrame:VectorToObjectSpace(cam.CFrame.LookVector)
+        fp = math.clamp(math.deg(math.asin(lv.Y)), -90, 90)
+        fy = math.clamp(math.deg(math.atan2(-lv.X, -lv.Z)), -180, 180)
+    end
+
     if neck and origN then
-        neck.C0 = CFrame.new(origN.Position) * CFrame.Angles(math.rad(np), math.rad(ny), 0)
+        neck.C0 = CFrame.new(origN.Position) * CFrame.Angles(math.rad(fp), math.rad(fy), 0)
         neck.Transform = CFrame.new()
     end
-    
     if waist and origW then
         if rnd then wp, wy = math.random(-180,180), math.random(-180,180) end
         waist.C0 = CFrame.new(origW.Position) * CFrame.Angles(math.rad(wp), math.rad(wy), 0)
         waist.Transform = CFrame.new()
-    end
-
-    -- 게임 카메라(CurrentCamera) 자체를 설정한 Yaw/Pitch와 머리 위치로 완벽 동기화 및 고정
-    if camSync and hrp then
-        local cam = workspace.CurrentCamera
-        cam.CameraType = Enum.CameraType.Scriptable
-        local headPos = head and head.Position or (hrp.Position + Vector3.new(0, 2, 0))
-        cam.CFrame = CFrame.new(headPos) * CFrame.Angles(math.rad(np), math.rad(ny), 0)
     end
 end)
