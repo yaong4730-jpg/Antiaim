@@ -4,12 +4,15 @@ local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
+local Options = getgenv().Options
+local Toggles = getgenv().Toggles
+
 Library.ShowToggleFrameInKeybinds = true 
 Library.ShowCustomCursor = true 
 Library.NotifySide = "Left" 
 
 local Window = Library:CreateWindow({
-	Title = "Unnamed Enhancements - UI Framework",
+	Title = "Unnamed Enhancements - Full Integrated",
 	Center = true,
 	AutoShow = true,
 	Resizable = true,
@@ -22,19 +25,265 @@ local Window = Library:CreateWindow({
 
 local Tabs = {
 	Main = Window:AddTab("Main"),
+	Visuals = Window:AddTab("Camera & Body"),
 	["UI Settings"] = Window:AddTab("UI Settings"),
 }
 
+-- ==================== 캐릭터 및 카메라 제어 변수 설정 ====================
+local P = game:GetService("Players").LocalPlayer
+local RS = game:GetService("RunService")
+local cam = workspace.CurrentCamera
+local char, hum, hrp, head, neck, waist, origN, origW
+local np, ny, wp, wy, spd = 0, 0, 0, 0, 70
+local rnd, spin, camSync, voidSpam = false, false, false, false
+
+local function setupChar(c)
+    char, hum, hrp, head = c, c:FindFirstChild("Humanoid"), c:FindFirstChild("HumanoidRootPart"), c:FindFirstChild("Head")
+    local u = c:FindFirstChild("UpperTorso")
+    neck = head and head:FindFirstChild("Neck")
+    waist = u and u:FindFirstChild("Waist")
+    if neck and not origN then origN = neck.C0 end
+    if waist and not origW then origW = waist.C0 end
+end
+if P.Character then setupChar(P.Character) end
+P.CharacterAdded:Connect(setupChar)
+
+-- ==================== MAIN 탭: 전투 및 유틸리티 ====================
+local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Combat & Ragebot")
+
+LeftGroupBox:AddToggle("Ragebot", {
+	Text = "Ragebot (beta)",
+	Default = false,
+	Tooltip = "Toggle core ragebot features & sound/drop systems",
+	Callback = function(Value)
+		print("[cb] Ragebot changed to:", Value)
+	end
+})
+
+LeftGroupBox:AddToggle("AutoLoot", {
+	Text = "Auto Collect Drops",
+	Default = true,
+	Tooltip = "Automatically pick up health/ammo drops",
+	Callback = function(Value)
+		print("[cb] Auto Loot:", Value)
+	end
+})
+
+-- ==================== CAMERA & BODY 탭: 카메라 동기화 및 림 조작 ====================
+local BodyGroupbox = Tabs.Visuals:AddLeftGroupbox("Body & Camera Controls")
+
+BodyGroupbox:AddToggle("CamSync", {
+	Text = "Camera Sync",
+	Default = false,
+	Tooltip = "Sync head/neck with camera look vector",
+	Callback = function(Value)
+		camSync = Value
+	end
+})
+
+BodyGroupbox:AddToggle("BodySpin", {
+	Text = "Body Spin",
+	Default = false,
+	Tooltip = "Spin character body continuously",
+	Callback = function(Value)
+		spin = Value
+		if hum then hum.AutoRotate = not spin end
+	end
+})
+
+BodyGroupbox:AddToggle("WaistRandom", {
+	Text = "Waist Randomize",
+	Default = false,
+	Tooltip = "Randomize waist angles every frame",
+	Callback = function(Value)
+		rnd = Value
+	end
+})
+
+BodyGroupbox:AddToggle("VoidSpam", {
+	Text = "Void Spam",
+	Default = false,
+	Tooltip = "Teleport character to void continuously",
+	Callback = function(Value)
+		voidSpam = Value
+	end
+})
+
+BodyGroupbox:AddSlider("SpinSpeed", {
+	Text = "Spin Speed",
+	Default = 70,
+	Min = 0,
+	Max = 180,
+	Suffix = "",
+	Decimals = 0,
+	Callback = function(Value)
+		spd = Value
+	end
+})
+
+local ExtraGroupbox = Tabs.Visuals:AddRightGroupbox("Neck & Waist Adjustments")
+
+ExtraGroupbox:AddSlider("NeckPitch", {
+	Text = "Neck Pitch",
+	Default = 0,
+	Min = -180,
+	Max = 180,
+	Suffix = "°",
+	Decimals = 0,
+	Callback = function(Value)
+		np = Value
+	end
+})
+
+ExtraGroupbox:AddSlider("NeckYaw", {
+	Text = "Neck Yaw",
+	Default = 0,
+	Min = -180,
+	Max = 180,
+	Suffix = "°",
+	Decimals = 0,
+	Callback = function(Value)
+		ny = Value
+	end
+})
+
+ExtraGroupbox:AddSlider("WaistPitch", {
+	Text = "Waist Pitch",
+	Default = 0,
+	Min = -180,
+	Max = 180,
+	Suffix = "°",
+	Decimals = 0,
+	Callback = function(Value)
+		wp = Value
+	end
+})
+
+ExtraGroupbox:AddSlider("WaistYaw", {
+	Text = "Waist Yaw",
+	Default = 0,
+	Min = -180,
+	Max = 180,
+	Suffix = "°",
+	Decimals = 0,
+	Callback = function(Value)
+		wy = Value
+	end
+})
+
+-- ==================== UI SETTINGS & MANAGER ====================
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
-
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
-
 ThemeManager:SetFolder("UnnamedEnhancements")
 SaveManager:SetFolder("UnnamedEnhancements/rivals")
-
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 
-Library:Notify("UI Framework loaded successfully!", 5)
+
+-- =========================================================================
+-- [실행 루프 및 핵심 시스템] 타격음, 자동 수집, 카메라/바디 동기화 루프
+-- =========================================================================
+
+local Debris = game:GetService("Debris")
+local soundtochange = "rbxassetid://110241936966089"
+
+task.spawn(function()
+	local playerScripts = P:WaitForChild("PlayerScripts", 10)
+	if not playerScripts then return end
+	playerScripts.DescendantAdded:Connect(function(v)
+		if Toggles.Ragebot and Toggles.Ragebot.Value then
+			if v:IsA("Sound") and v.SoundId ~= "rbxassetid://16537449730" then
+				v.Volume = 0
+				local smoothSound = Instance.new("Sound")
+				smoothSound.SoundId = soundtochange
+				smoothSound.Pitch = 1
+				smoothSound.Volume = 1
+				smoothSound.Parent = workspace
+				smoothSound:Play()
+				Debris:AddItem(smoothSound, 2)
+			end
+		end
+	end)
+end)
+
+RS.RenderStepped:Connect(function(dt)
+    if not char or not hrp then return end
+    
+    -- Void Spam 처리
+    if voidSpam then 
+        hrp.CFrame = CFrame.new(hrp.Position.X, -10000, hrp.Position.Z) 
+    end
+    
+    -- Body Spin 처리
+    if spin then 
+        hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(spd * (dt * 60)), 0) 
+    end
+    
+    -- Camera Sync 및 각도 적용
+    local fp, fy = np, ny
+    if camSync then
+        local lv = hrp.CFrame:VectorToObjectSpace(cam.CFrame.LookVector)
+        fp = math.clamp(math.deg(math.asin(lv.Y)), -90, 90)
+        fy = math.clamp(math.deg(math.atan2(-lv.X, -lv.Z)), -180, 180)
+    end
+
+    if neck and origN then
+        neck.C0 = CFrame.new(origN.Position) * CFrame.Angles(math.rad(fp), math.rad(fy), 0)
+        neck.Transform = CFrame.new()
+    end
+    
+    if waist and origW then
+        local currentWp, currentWy = wp, wy
+        if rnd then currentWp, currentWy = math.random(-180,180), math.random(-180,180) end
+        waist.C0 = CFrame.new(origW.Position) * CFrame.Angles(math.rad(currentWp), math.rad(currentWy), 0)
+        waist.Transform = CFrame.new()
+    end
+
+    -- Auto Loot / 드랍 아이템 수집
+    if (Toggles.AutoLoot and Toggles.AutoLoot.Value) or (Toggles.Ragebot and Toggles.Ragebot.Value) then
+        local humanoid = char:FindFirstChild("Humanoid")
+        local needsHealth = humanoid and humanoid.Health < humanoid.MaxHealth
+        for _, obj in workspace:GetChildren() do
+            if obj.Name == "_drop" and obj:IsA("BasePart") then
+                if (obj:FindFirstChild("Health") and needsHealth) or obj:FindFirstChild("Ammo") then
+                    firetouchinterest(hrp, obj, 0)
+                    firetouchinterest(hrp, obj, 1)
+                end
+            end
+        end
+    end
+end)
+
+-- ==================== 코스메틱 언락 바이패스 시스템 ====================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local controllers = P.PlayerScripts:WaitForChild("Controllers", 10)
+
+pcall(function()
+    local EnumLibrary = require(ReplicatedStorage.Modules:WaitForChild("EnumLibrary", 10))
+    if EnumLibrary then EnumLibrary:WaitForEnumBuilder() end
+    local CosmeticLibrary = require(ReplicatedStorage.Modules:WaitForChild("CosmeticLibrary", 10))
+    local DataController = require(controllers:WaitForChild("PlayerDataController", 10))
+
+    CosmeticLibrary.OwnsCosmetic = function(self, inventory, name, weapon)
+        if name and name:find("MISSING_") then return false end
+        return true
+    end
+
+    local originalGet = DataController.Get
+    DataController.Get = function(self, key)
+        local data = originalGet(self, key)
+        if key == "CosmeticInventory" then
+            local proxy = {}
+            if data then for k, _ in pairs(data) do proxy[k] = true end end
+            return setmetatable(proxy, {__index = function(t, k)
+                if CosmeticLibrary.Cosmetics[k] then return true end
+                return nil
+            end})
+        end
+        return data
+    end
+end)
+
+Library:Notify("Unnamed Enhancements (Full Features & Camera Sync) Loaded!", 5)
