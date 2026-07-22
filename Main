@@ -7,7 +7,7 @@ local Mouse = LocalPlayer:GetMouse()
 -- ==========================================
 -- 1. 기존 GUI 정리
 -- ==========================================
-local GUI_NAME = "RivalsPureCFrameGui_VoidSpam"
+local GUI_NAME = "RivalsPureCFrameGui_VoidSpamDeep"
 local parentGui = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
 if parentGui:FindFirstChild(GUI_NAME) then
@@ -24,7 +24,7 @@ local isRandomMode = false
 local isSpinMode = false
 local isCamSync = false
 local isClickTpMode = false
-local isVoidSpamMode = false -- 보이드 스팸 토글 상태
+local isVoidSpamMode = false
 
 local lastRandomTick = 0
 local RANDOM_INTERVAL = 0.05
@@ -65,7 +65,7 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = parentGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 260, 0, 420) -- 버튼 추가로 세로 크기 확장
+mainFrame.Size = UDim2.new(0, 260, 0, 420)
 mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 mainFrame.BorderSizePixel = 0
@@ -79,7 +79,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "Pro CFrame + Spin + Void Spam"
+title.Text = "Pro CFrame + Spin + Void Spam (-10k)"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 12
 title.Font = Enum.Font.GothamBold
@@ -165,7 +165,7 @@ local randomButton = createButton("Waist Random: OFF", 35)
 local spinButton = createButton("Body Spin Mode: OFF", 65)
 local camSyncButton = createButton("Camera Sync: OFF", 95)
 local clickTpButton = createButton("Click TP: OFF", 125, Color3.fromRGB(40, 120, 150))
-local voidSpamButton = createButton("Void Spam: OFF", 155, Color3.fromRGB(150, 40, 40)) -- 보이드 스팸 토글 버튼
+local voidSpamButton = createButton("Void Spam: OFF", 155, Color3.fromRGB(150, 40, 40))
 
 local neckTrig, neckBg, neckFill, neckLbl = createSlider(195, "Neck Pitch: 0°", 0.5)
 local waistTrig, waistBg, waistFill, waistLbl = createSlider(245, "Waist Pitch: 0°", 0.5, Color3.fromRGB(255, 100, 100))
@@ -205,7 +205,6 @@ clickTpButton.MouseButton1Click:Connect(function()
     clickTpButton.BackgroundColor3 = isClickTpMode and Color3.fromRGB(0, 150, 180) or Color3.fromRGB(40, 120, 150)
 end)
 
--- 보이드 스팸 토글 버튼 이벤트
 voidSpamButton.MouseButton1Click:Connect(function()
     isVoidSpamMode = not isVoidSpamMode
     voidSpamButton.Text = "Void Spam: " .. (isVoidSpamMode and "ON" or "OFF")
@@ -276,10 +275,10 @@ end)
 RunService.RenderStepped:Connect(function(dt)
     if not char or not char.Parent then return end
 
-    -- 1) 보이드 스팸 활성화 시 매 프레임 공허(Y = -500)로 위치 강제 고정 및 스팸
+    -- 1) 보이드 스팸 활성화 시 Y = -10,000으로 강제 고정 및 스팸
     if isVoidSpamMode and hrp then
         local currentPos = hrp.Position
-        hrp.CFrame = CFrame.new(currentPos.X, -500, currentPos.Z)
+        hrp.CFrame = CFrame.new(currentPos.X, -10000, currentPos.Z)
     end
 
     -- 2) 전체 몸체 스핀
