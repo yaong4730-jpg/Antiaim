@@ -1,124 +1,326 @@
-local P = game:GetService("Players").LocalPlayer
-local RS = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
-local cam = workspace.CurrentCamera
-local char, hum, hrp, head, neck, waist, origN, origW
-local np, ny, wp, wy, spd = 0, 0, 0, 0, 70
-local rnd, spin, camSync, voidSpam = false, false, false, false
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
 
-local function setup(c)
-    char, hum, hrp, head = c, c:FindFirstChild("Humanoid"), c:FindFirstChild("HumanoidRootPart"), c:FindFirstChild("Head")
-    local u = c:FindFirstChild("UpperTorso")
-    neck = head and head:FindFirstChild("Neck")
-    waist = u and u:FindFirstChild("Waist")
-    if neck and not origN then origN = neck.C0 end
-    if waist and not origW then origW = waist.C0 end
-end
-if P.Character then setup(P.Character) end
-P.CharacterAdded:Connect(setup)
+-- ==========================================
+-- 1. 기존 GUI 정리
+-- ==========================================
+local GUI_NAME = "RivalsMonochromeGui_NoTp"
+local parentGui = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
-local gui = Instance.new("ScreenGui", (gethui and gethui()) or P:WaitForChild("PlayerGui"))
-local tog = Instance.new("TextButton", gui)
-tog.Size, tog.Position, tog.Text = UDim2.new(0, 50, 0, 30), UDim2.new(0, 10, 0, 10), "UI"
-tog.BackgroundColor3, tog.TextColor3 = Color3.fromRGB(30,30,30), Color3.fromRGB(255,255,255)
-
-local f = Instance.new("Frame", gui)
-f.Size, f.Position, f.BackgroundColor3, f.Visible = UDim2.new(0, 200, 0, 340), UDim2.new(0.05,0,0.2,0), Color3.fromRGB(20,20,20), true
-tog.MouseButton1Click:Connect(function() f.Visible = not f.Visible end)
-
-local dragging, dragStart, startPos
-f.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        dragging, dragStart, startPos = true, i.Position, f.Position
-    end
-end)
-UIS.InputChanged:Connect(function(i)
-    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-        local d = i.Position - dragStart
-        f.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-    end
-end)
-UIS.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
-end)
-
-local y = 5
-local function addBtn(txt, cb)
-    local b = Instance.new("TextButton", f)
-    b.Size, b.Position, b.Text = UDim2.new(0.9,0,0,24), UDim2.new(0.05,0,0,y), txt
-    b.BackgroundColor3, b.TextColor3 = Color3.fromRGB(40,40,40), Color3.fromRGB(255,255,255)
-    b.MouseButton1Click:Connect(cb)
-    y = y + 28
-    return b
+if parentGui:FindFirstChild(GUI_NAME) then
+    parentGui[GUI_NAME]:Destroy()
 end
 
-local b1 = addBtn("Waist Random: OFF", function() rnd = not rnd b1.Text = "Waist Random: "..(rnd and "ON" or "OFF") end)
-local b2 = addBtn("Body Spin: OFF", function() spin = not spin b2.Text = "Body Spin: "..(spin and "ON" or "OFF") if hum then hum.AutoRotate = not spin end end)
-local b3 = addBtn("Camera Sync: OFF", function() camSync = not camSync b3.Text = "Camera Sync: "..(camSync and "ON" or "OFF") end)
-local b4 = addBtn("Void Spam: OFF", function() voidSpam = not voidSpam b4.Text = "Void Spam: "..(voidSpam and "ON" or "OFF") end)
+-- ==========================================
+-- 2. 상태 변수 및 캐싱
+-- ==========================================
+local neckPitch = 0
+local neckYaw = 0
+local waistPitch = 0
+local waistYaw = 0
+local spinSpeed = 70
+local isRandomMode = false
+local isSpinMode = false
+local isCamSync = false
+local isVoidSpamMode = false
 
-local function addSld(name, min, max, def, cb)
-    local l = Instance.new("TextLabel", f)
-    l.Size, l.Position, l.Text, l.TextColor3, l.BackgroundTransparency = UDim2.new(0.9,0,0,14), UDim2.new(0.05,0,0,y), name..": "..def, Color3.fromRGB(180,180,180), true
-    l.TextSize = 10
-    y = y + 15
-    local bar = Instance.new("TextButton", f)
-    bar.Size, bar.Position, bar.Text, bar.BackgroundColor3 = UDim2.new(0.9,0,0,10), UDim2.new(0.05,0,0,y), "", Color3.fromRGB(40,40,40)
-    local fill = Instance.new("Frame", bar)
-    fill.Size, fill.BackgroundColor3 = UDim2.new((def-min)/(max-min),0,1,0), Color3.fromRGB(200,200,200)
-    y = y + 16
+local lastRandomTick = 0
+local RANDOM_INTERVAL = 0.05
 
-    bar.InputBegan:Connect(function(input)
+local char, hum, hrp, head, upperTorso, neck, waist
+local origNeckC0, origWaistC0
+
+local function setupCharacter(character)
+    if not character then return end
+    char = character
+    hum = character:WaitForChild("Humanoid", 5)
+    hrp = character:WaitForChild("HumanoidRootPart", 5)
+    head = character:WaitForChild("Head", 5)
+    upperTorso = character:WaitForChild("UpperTorso", 5)
+
+    if not head or not upperTorso then return end
+
+    neck = head:FindFirstChild("Neck")
+    waist = upperTorso:FindFirstChild("Waist")
+
+    if neck and not origNeckC0 then origNeckC0 = neck.C0 end
+    if waist and not origWaistC0 then origWaistC0 = waist.C0 end
+
+    if hum and isSpinMode then
+        hum.AutoRotate = false
+    end
+end
+
+if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(setupCharacter)
+
+-- ==========================================
+-- 3. 모노크롬 UI 생성 (컴팩트 높이 적용)
+-- ==========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = GUI_NAME
+screenGui.ResetOnSpawn = false
+screenGui.Parent = parentGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 260, 0, 400)
+mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 6)
+corner.Parent = mainFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 32)
+title.BackgroundTransparency = 1
+title.Text = "MONOCHROME CONTROL"
+title.TextColor3 = Color3.fromRGB(240, 240, 240)
+title.TextSize = 11
+title.Font = Enum.Font.GothamBold
+title.Parent = mainFrame
+
+-- 창 드래그
+local draggingWindow, dragStart, startPos
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingWindow = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+-- 버튼 생성 함수
+local function createButton(text, yPos)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 26)
+    btn.Position = UDim2.new(0.05, 0, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.GothamSemibold
+    btn.Text = text
+    btn.Parent = mainFrame
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 4)
+    btnCorner.Parent = btn
+    return btn
+end
+
+-- 슬라이더 생성 함수
+local function createSlider(yPos, labelText, defaultRatio)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(0.9, 0, 0, 38)
+    container.Position = UDim2.new(0.05, 0, 0, yPos)
+    container.BackgroundTransparency = 1
+    container.Parent = mainFrame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 14)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(180, 180, 180)
+    label.TextSize = 10
+    label.Font = Enum.Font.Gotham
+    label.Parent = container
+
+    local bgBar = Instance.new("Frame")
+    bgBar.Size = UDim2.new(1, 0, 0, 6)
+    bgBar.Position = UDim2.new(0, 0, 0, 18)
+    bgBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    bgBar.BorderSizePixel = 0
+    bgBar.Parent = container
+
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(1, 0)
+    bgCorner.Parent = bgBar
+
+    local fillBar = Instance.new("Frame")
+    fillBar.Size = UDim2.new(defaultRatio, 0, 1, 0)
+    fillBar.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+    fillBar.BorderSizePixel = 0
+    fillBar.Parent = bgBar
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fillBar
+
+    local trigger = Instance.new("TextButton")
+    trigger.Size = UDim2.new(1, 0, 1, 8)
+    trigger.Position = UDim2.new(0, 0, 0, -4)
+    trigger.BackgroundTransparency = 1
+    trigger.Text = ""
+    trigger.Parent = bgBar
+
+    return trigger, bgBar, fillBar, label
+end
+
+-- 버튼 및 슬라이더 배치 (간격 최적화)
+local randomButton = createButton("Waist Random: OFF", 36)
+local spinButton = createButton("Body Spin Mode: OFF", 66)
+local camSyncButton = createButton("Camera Sync: OFF", 96)
+local voidSpamButton = createButton("Void Spam: OFF", 126)
+
+local neckPitchTrig, neckPitchBg, neckPitchFill, neckPitchLbl = createSlider(158, "Neck Pitch: 0°", 0.5)
+local neckYawTrig, neckYawBg, neckYawFill, neckYawLbl = createSlider(198, "Neck Yaw: 0°", 0.5)
+local waistPitchTrig, waistPitchBg, waistPitchFill, waistPitchLbl = createSlider(238, "Waist Pitch: 0°", 0.5)
+local waistYawTrig, waistYawBg, waistYawFill, waistYawLbl = createSlider(278, "Waist Yaw: 0°", 0.5)
+local spinTrig, spinBg, spinFill, spinLbl = createSlider(318, "Spin Speed: 70", 70 / 180)
+
+-- ==========================================
+-- 4. 이벤트 핸들러
+-- ==========================================
+local function updateButtonStyle(btn, state)
+    if state then
+        btn.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+        btn.TextColor3 = Color3.fromRGB(15, 15, 15)
+    else
+        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    end
+end
+
+randomButton.MouseButton1Click:Connect(function()
+    isRandomMode = not isRandomMode
+    randomButton.Text = "Waist Random: " .. (isRandomMode and "ON" or "OFF")
+    updateButtonStyle(randomButton, isRandomMode)
+end)
+
+spinButton.MouseButton1Click:Connect(function()
+    isSpinMode = not isSpinMode
+    spinButton.Text = "Body Spin Mode: " .. (isSpinMode and "ON" or "OFF")
+    updateButtonStyle(spinButton, isSpinMode)
+    if hum then hum.AutoRotate = not isSpinMode end
+end)
+
+camSyncButton.MouseButton1Click:Connect(function()
+    isCamSync = not isCamSync
+    camSyncButton.Text = "Camera Sync: " .. (isCamSync and "ON" or "OFF")
+    updateButtonStyle(camSyncButton, isCamSync)
+    
+    local cam = workspace.CurrentCamera
+    if not isCamSync then
+        cam.CameraType = Enum.CameraType.Custom
+        if hum then cam.CameraSubject = hum end
+    end
+end)
+
+voidSpamButton.MouseButton1Click:Connect(function()
+    isVoidSpamMode = not isVoidSpamMode
+    voidSpamButton.Text = "Void Spam: " .. (isVoidSpamMode and "ON" or "OFF")
+    updateButtonStyle(voidSpamButton, isVoidSpamMode)
+end)
+
+local activeSlider = nil
+local function registerSlider(trigger, bg, fill, label, minVal, maxVal, callback)
+    trigger.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            local sliding = true
-            local function update(i)
-                local r = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-                fill.Size = UDim2.new(r,0,1,0)
-                local v = math.floor(min + (max-min)*r)
-                l.Text = name..": "..v
-                cb(v)
-            end
-            update(input)
-            local conn = UIS.InputChanged:Connect(function(i)
-                if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then update(i) end
-            end)
-            local endConn
-            endConn = UIS.InputEnded:Connect(function(i)
-                if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-                    sliding = false
-                    if conn then conn:Disconnect() end
-                    if endConn then endConn:Disconnect() end
-                end
-            end)
+            activeSlider = { bg = bg, fill = fill, label = label, min = minVal, max = maxVal, cb = callback }
+            local relX = math.clamp((input.Position.X - bg.AbsolutePosition.X) / bg.AbsoluteSize.X, 0, 1)
+            fill.Size = UDim2.new(relX, 0, 1, 0)
+            local val = math.floor(minVal + (maxVal - minVal) * relX)
+            callback(val, label)
         end
     end)
 end
 
-addSld("Neck Pitch", -180, 180, 0, function(v) np = v end)
-addSld("Neck Yaw", -180, 180, 0, function(v) ny = v end)
-addSld("Waist Pitch", -180, 180, 0, function(v) wp = v end)
-addSld("Waist Yaw", -180, 180, 0, function(v) wy = v end)
-addSld("Spin Speed", 0, 180, 70, function(v) spd = v end)
+registerSlider(neckPitchTrig, neckPitchBg, neckPitchFill, neckPitchLbl, -180, 180, function(val, lbl)
+    neckPitch = val
+    lbl.Text = string.format("Neck Pitch: %d°", val)
+end)
 
-RS.RenderStepped:Connect(function(dt)
-    if not char or not hrp then return end
-    if voidSpam then hrp.CFrame = CFrame.new(hrp.Position.X, -10000, hrp.Position.Z) end
-    if spin then hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(spd * (dt * 60)), 0) end
-    
-    local fp, fy = np, ny
-    if camSync then
-        local lv = hrp.CFrame:VectorToObjectSpace(cam.CFrame.LookVector)
-        fp = math.clamp(math.deg(math.asin(lv.Y)), -90, 90)
-        fy = math.clamp(math.deg(math.atan2(-lv.X, -lv.Z)), -180, 180)
+registerSlider(neckYawTrig, neckYawBg, neckYawFill, neckYawLbl, -180, 180, function(val, lbl)
+    neckYaw = val
+    lbl.Text = string.format("Neck Yaw: %d°", val)
+end)
+
+registerSlider(waistPitchTrig, waistPitchBg, waistPitchFill, waistPitchLbl, -180, 180, function(val, lbl)
+    if not isRandomMode then
+        waistPitch = val
+        lbl.Text = string.format("Waist Pitch: %d°", val)
+    end
+end)
+
+registerSlider(waistYawTrig, waistYawBg, waistYawFill, waistYawLbl, -180, 180, function(val, lbl)
+    if not isRandomMode then
+        waistYaw = val
+        lbl.Text = string.format("Waist Yaw: %d°", val)
+    end
+end)
+
+registerSlider(spinTrig, spinBg, spinFill, spinLbl, 0, 180, function(val, lbl)
+    spinSpeed = val
+    lbl.Text = string.format("Spin Speed: %d", val)
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if draggingWindow then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        elseif activeSlider then
+            local relX = math.clamp((input.Position.X - activeSlider.bg.AbsolutePosition.X) / activeSlider.bg.AbsoluteSize.X, 0, 1)
+            activeSlider.fill.Size = UDim2.new(relX, 0, 1, 0)
+            local val = math.floor(activeSlider.min + (activeSlider.max - activeSlider.min) * relX)
+            activeSlider.cb(val, activeSlider.label)
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingWindow = false
+        activeSlider = nil
+    end
+end)
+
+-- ==========================================
+-- 5. 렌더링 루프 (흔들림 원천 차단 및 각도 고정)
+-- ==========================================
+RunService.RenderStepped:Connect(function(dt)
+    if not char or not char.Parent or not hrp or not hrp.Parent then return end
+
+    if isVoidSpamMode then
+        hrp.CFrame = CFrame.new(hrp.Position.X, -10000, hrp.Position.Z)
     end
 
-    if neck and origN then
-        neck.C0 = CFrame.new(origN.Position) * CFrame.Angles(math.rad(fp), math.rad(fy), 0)
+    if isSpinMode then
+        local rotRad = math.rad(spinSpeed * (dt * 60))
+        hrp.CFrame = hrp.CFrame * CFrame.Angles(0, rotRad, 0)
+    end
+
+    -- 목 (Neck) 완전 고정
+    if neck and origNeckC0 then
+        local neckRot = CFrame.Angles(math.rad(neckPitch), math.rad(neckYaw), 0)
+        neck.C0 = CFrame.new(origNeckC0.Position) * neckRot
         neck.Transform = CFrame.new()
     end
-    if waist and origW then
-        if rnd then wp, wy = math.random(-180,180), math.random(-180,180) end
-        waist.C0 = CFrame.new(origW.Position) * CFrame.Angles(math.rad(wp), math.rad(wy), 0)
+
+    -- 허리 (Waist) 완전 고정
+    if waist and origWaistC0 then
+        if isRandomMode then
+            local now = tick()
+            if now - lastRandomTick >= RANDOM_INTERVAL then
+                lastRandomTick = now
+                waistPitch = math.random(-180, 180)
+                waistYaw = math.random(-180, 180)
+            end
+        end
+        local waistRot = CFrame.Angles(math.rad(waistPitch), math.rad(waistYaw), 0)
+        waist.C0 = CFrame.new(origWaistC0.Position) * waistRot
         waist.Transform = CFrame.new()
+    end
+
+    -- 카메라 동기화
+    if isCamSync and head and head.Parent then
+        local cam = workspace.CurrentCamera
+        cam.CameraType = Enum.CameraType.Scriptable
+        cam.CFrame = head.CFrame * CFrame.new(0, 1.5, 8) 
     end
 end)
