@@ -1,0 +1,124 @@
+local P = game:GetService("Players").LocalPlayer
+local RS = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local cam = workspace.CurrentCamera
+local char, hum, hrp, head, neck, waist, origN, origW
+local np, ny, wp, wy, spd = 0, 0, 0, 0, 70
+local rnd, spin, camSync, voidSpam = false, false, false, false
+
+local function setup(c)
+    char, hum, hrp, head = c, c:FindFirstChild("Humanoid"), c:FindFirstChild("HumanoidRootPart"), c:FindFirstChild("Head")
+    local u = c:FindFirstChild("UpperTorso")
+    neck = head and head:FindFirstChild("Neck")
+    waist = u and u:FindFirstChild("Waist")
+    if neck and not origN then origN = neck.C0 end
+    if waist and not origW then origW = waist.C0 end
+end
+if P.Character then setup(P.Character) end
+P.CharacterAdded:Connect(setup)
+
+local gui = Instance.new("ScreenGui", (gethui and gethui()) or P:WaitForChild("PlayerGui"))
+local tog = Instance.new("TextButton", gui)
+tog.Size, tog.Position, tog.Text = UDim2.new(0, 50, 0, 30), UDim2.new(0, 10, 0, 10), "UI"
+tog.BackgroundColor3, tog.TextColor3 = Color3.fromRGB(30,30,30), Color3.fromRGB(255,255,255)
+
+local f = Instance.new("Frame", gui)
+f.Size, f.Position, f.BackgroundColor3, f.Visible = UDim2.new(0, 200, 0, 340), UDim2.new(0.05,0,0.2,0), Color3.fromRGB(20,20,20), true
+tog.MouseButton1Click:Connect(function() f.Visible = not f.Visible end)
+
+local dragging, dragStart, startPos
+f.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        dragging, dragStart, startPos = true, i.Position, f.Position
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local d = i.Position - dragStart
+        f.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+    end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+end)
+
+local y = 5
+local function addBtn(txt, cb)
+    local b = Instance.new("TextButton", f)
+    b.Size, b.Position, b.Text = UDim2.new(0.9,0,0,24), UDim2.new(0.05,0,0,y), txt
+    b.BackgroundColor3, b.TextColor3 = Color3.fromRGB(40,40,40), Color3.fromRGB(255,255,255)
+    b.MouseButton1Click:Connect(cb)
+    y = y + 28
+    return b
+end
+
+local b1 = addBtn("Waist Random: OFF", function() rnd = not rnd b1.Text = "Waist Random: "..(rnd and "ON" or "OFF") end)
+local b2 = addBtn("Body Spin: OFF", function() spin = not spin b2.Text = "Body Spin: "..(spin and "ON" or "OFF") if hum then hum.AutoRotate = not spin end end)
+local b3 = addBtn("Camera Sync: OFF", function() camSync = not camSync b3.Text = "Camera Sync: "..(camSync and "ON" or "OFF") end)
+local b4 = addBtn("Void Spam: OFF", function() voidSpam = not voidSpam b4.Text = "Void Spam: "..(voidSpam and "ON" or "OFF") end)
+
+local function addSld(name, min, max, def, cb)
+    local l = Instance.new("TextLabel", f)
+    l.Size, l.Position, l.Text, l.TextColor3, l.BackgroundTransparency = UDim2.new(0.9,0,0,14), UDim2.new(0.05,0,0,y), name..": "..def, Color3.fromRGB(180,180,180), true
+    l.TextSize = 10
+    y = y + 15
+    local bar = Instance.new("TextButton", f)
+    bar.Size, bar.Position, bar.Text, bar.BackgroundColor3 = UDim2.new(0.9,0,0,10), UDim2.new(0.05,0,0,y), "", Color3.fromRGB(40,40,40)
+    local fill = Instance.new("Frame", bar)
+    fill.Size, fill.BackgroundColor3 = UDim2.new((def-min)/(max-min),0,1,0), Color3.fromRGB(200,200,200)
+    y = y + 16
+
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local sliding = true
+            local function update(i)
+                local r = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+                fill.Size = UDim2.new(r,0,1,0)
+                local v = math.floor(min + (max-min)*r)
+                l.Text = name..": "..v
+                cb(v)
+            end
+            update(input)
+            local conn = UIS.InputChanged:Connect(function(i)
+                if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then update(i) end
+            end)
+            local endConn
+            endConn = UIS.InputEnded:Connect(function(i)
+                if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+                    sliding = false
+                    if conn then conn:Disconnect() end
+                    if endConn then endConn:Disconnect() end
+                end
+            end)
+        end
+    end)
+end
+
+addSld("Neck Pitch", -180, 180, 0, function(v) np = v end)
+addSld("Neck Yaw", -180, 180, 0, function(v) ny = v end)
+addSld("Waist Pitch", -180, 180, 0, function(v) wp = v end)
+addSld("Waist Yaw", -180, 180, 0, function(v) wy = v end)
+addSld("Spin Speed", 0, 180, 70, function(v) spd = v end)
+
+RS.RenderStepped:Connect(function(dt)
+    if not char or not hrp then return end
+    if voidSpam then hrp.CFrame = CFrame.new(hrp.Position.X, -10000, hrp.Position.Z) end
+    if spin then hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(spd * (dt * 60)), 0) end
+    
+    local fp, fy = np, ny
+    if camSync then
+        local lv = hrp.CFrame:VectorToObjectSpace(cam.CFrame.LookVector)
+        fp = math.clamp(math.deg(math.asin(lv.Y)), -90, 90)
+        fy = math.clamp(math.deg(math.atan2(-lv.X, -lv.Z)), -180, 180)
+    end
+
+    if neck and origN then
+        neck.C0 = CFrame.new(origN.Position) * CFrame.Angles(math.rad(fp), math.rad(fy), 0)
+        neck.Transform = CFrame.new()
+    end
+    if waist and origW then
+        if rnd then wp, wy = math.random(-180,180), math.random(-180,180) end
+        waist.C0 = CFrame.new(origW.Position) * CFrame.Angles(math.rad(wp), math.rad(wy), 0)
+        waist.Transform = CFrame.new()
+    end
+end)
